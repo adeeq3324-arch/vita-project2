@@ -53,9 +53,7 @@ export function WelcomeScreen({ navigation }: Props) {
         <Button label="Get Started" onPress={() => navigation.navigate('GoalSelection')} />
 
         <Pressable
-          onPress={() => {
-            // Sign-in lands with the auth flow; onboarding is the only route today.
-          }}
+          onPress={() => navigation.navigate('Auth')}
           accessibilityRole="link"
           accessibilityLabel="Already have an account? Log in"
           style={styles.loginRow}

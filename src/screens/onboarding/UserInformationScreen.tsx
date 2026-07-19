@@ -141,9 +141,9 @@ export function UserInformationScreen({ navigation }: Props) {
           disabled={!isProfileComplete}
           accessibilityHint="Fill in every field to continue"
           onPress={() => {
-            // The Main navigator arrives with the tabs task; onboarding data is
-            // already in context, ready for it.
-            navigation.getParent()?.navigate('Main');
+            // Last data step done — hand off to the account screen (screen 5).
+            // Onboarding data is already in context, ready for it.
+            navigation.navigate('Auth');
           }}
         />
         <StepDots currentStep={4} />

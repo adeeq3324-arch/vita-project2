@@ -1,5 +1,6 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
+import { AuthScreen } from '@/screens/onboarding/AuthScreen';
 import { GoalSelectionScreen } from '@/screens/onboarding/GoalSelectionScreen';
 import { HealthConditionsScreen } from '@/screens/onboarding/HealthConditionsScreen';
 import { UserInformationScreen } from '@/screens/onboarding/UserInformationScreen';
@@ -30,6 +31,7 @@ export function OnboardingNavigator() {
       <Stack.Screen name="GoalSelection" component={GoalSelectionScreen} />
       <Stack.Screen name="HealthConditions" component={HealthConditionsScreen} />
       <Stack.Screen name="UserInformation" component={UserInformationScreen} />
+      <Stack.Screen name="Auth" component={AuthScreen} />
     </Stack.Navigator>
   );
 }

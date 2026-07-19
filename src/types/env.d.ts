@@ -10,6 +10,8 @@ declare namespace NodeJS {
     readonly EXPO_PUBLIC_API_URL?: string;
     readonly EXPO_PUBLIC_SUPABASE_URL?: string;
     readonly EXPO_PUBLIC_SUPABASE_ANON_KEY?: string;
+    /** Whether the AI assistant is enabled; the provider itself is server-side. */
+    readonly EXPO_PUBLIC_AI_ENABLED?: string;
   }
 }
 

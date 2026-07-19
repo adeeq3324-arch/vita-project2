@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import Svg, {
   Circle,
   Defs,
@@ -13,10 +14,14 @@ import { colors } from '@/theme';
  * blue) with an orange accent dot, over faint concentric rings.
  */
 export function VitalLogo({ size = 132 }: { size?: number }) {
+  // Unique per instance: on web the SVG becomes real DOM, and a shared gradient
+  // id collides with other mounted instances, blanking the fill.
+  const gradientId = `heartStroke-${useId().replace(/:/g, '')}`;
+
   return (
     <Svg width={size} height={size} viewBox="0 0 120 120" accessibilityRole="image">
       <Defs>
-        <SvgLinearGradient id="heartStroke" x1="0" y1="0" x2="1" y2="1">
+        <SvgLinearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
           <Stop offset="0" stopColor="#A855F7" />
           <Stop offset="0.5" stopColor="#7C3AED" />
           <Stop offset="1" stopColor="#2563EB" />
@@ -35,7 +40,7 @@ export function VitalLogo({ size = 132 }: { size?: number }) {
            C 64 21, 71 16, 80 16
            C 94 16, 106 26, 106 42
            C 106 60, 90 78, 60 100 Z"
-        stroke="url(#heartStroke)"
+        stroke={`url(#${gradientId})`}
         strokeWidth={11}
         strokeLinecap="round"
         strokeLinejoin="round"

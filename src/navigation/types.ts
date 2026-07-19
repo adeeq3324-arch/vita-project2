@@ -20,6 +20,7 @@ export type OnboardingStackParamList = {
   GoalSelection: undefined;
   HealthConditions: undefined;
   UserInformation: undefined;
+  Auth: undefined;
 };
 
 export type MainTabParamList = {
@@ -31,10 +32,37 @@ export type MainTabParamList = {
   Planning: undefined;
 };
 
+/**
+ * Stack wrapping the tab navigator, so Profile can be pushed over the tabs
+ * from a screen header (Profile is not itself a tab).
+ */
+export type MainStackParamList = {
+  Tabs: NavigatorScreenParams<MainTabParamList>;
+
+  /** Profile and its sub-screens (reached from the header, not tabs). */
+  Profile: undefined;
+  Reminders: undefined;
+  Settings: undefined;
+
+  /** Planning detail screens. */
+  MealPlan: undefined;
+  SupplementPlan: undefined;
+  SupplementDetail: { id: string };
+
+  /** FAB quick-action flows. */
+  FoodScanner: undefined;
+  FoodScanResult: undefined;
+  FoodTracking: undefined;
+  ColorAnalysis: undefined;
+  ColorAnalysisResult: undefined;
+  BarcodeScanner: undefined;
+  BarcodeResult: undefined;
+};
+
 export type RootStackParamList = {
   Auth: NavigatorScreenParams<AuthStackParamList>;
   Onboarding: NavigatorScreenParams<OnboardingStackParamList>;
-  Main: NavigatorScreenParams<MainTabParamList>;
+  Main: NavigatorScreenParams<MainStackParamList>;
 };
 
 /**

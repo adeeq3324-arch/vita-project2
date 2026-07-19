@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { View } from 'react-native';
 import Svg, {
   Defs,
@@ -20,11 +21,15 @@ const HEIGHT = 58;
  * iOS, Android and web.
  */
 export function VitalWordmark() {
+  // Unique per instance so multiple mounted wordmarks don't share a DOM
+  // gradient id on web (which blanks the fill).
+  const gradientId = `wordmarkFill-${useId().replace(/:/g, '')}`;
+
   return (
     <View accessible accessibilityRole="header" accessibilityLabel="Vital AI">
       <Svg width={WIDTH} height={HEIGHT} viewBox={`0 0 ${WIDTH} ${HEIGHT}`}>
         <Defs>
-          <SvgLinearGradient id="wordmarkFill" x1="0" y1="0" x2="1" y2="0">
+          <SvgLinearGradient id={gradientId} x1="0" y1="0" x2="1" y2="0">
             <Stop offset="0" stopColor="#8B5CF6" />
             <Stop offset="1" stopColor="#2563EB" />
           </SvgLinearGradient>
@@ -37,7 +42,7 @@ export function VitalWordmark() {
           fontFamily={fontFamily.bold}
           fontSize={fontSize['5xl']}
           fontWeight={fontWeight.bold}
-          fill="url(#wordmarkFill)"
+          fill={`url(#${gradientId})`}
         >
           Vital AI
         </SvgText>

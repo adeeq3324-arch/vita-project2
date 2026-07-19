@@ -1,14 +1,19 @@
+import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, fontSize, fontWeight, gradients, radius, shadows, spacing } from '@/theme';
 import type { PrimaryGoal } from '@/types';
 
-import { GoalSilhouette } from './GoalSilhouette';
+import { GOAL_PHOTO_ASPECT, goalBlendColor, goalImages, goalPhotoOffset } from './goalImages';
 
 const CARD_HEIGHT = 148;
-/** Width reserved on the right of the card for the figure. */
-const FIGURE_WIDTH = 124;
+/** Width reserved on the right of the card for the photo. */
+const FIGURE_WIDTH = 158;
+/** Full-width render height of the photo before the card clips it. */
+const PHOTO_HEIGHT = Math.round(FIGURE_WIDTH / GOAL_PHOTO_ASPECT);
+/** Width of the fade that blends the photo's left edge into the card. */
+const FADE_WIDTH = 72;
 
 const gradientByGoal: Record<PrimaryGoal, readonly [string, string]> = {
   muscle_gain: gradients.muscleGain,
@@ -47,11 +52,25 @@ export function GoalCard({ goal, title, description, selected, onPress }: GoalCa
         <View style={styles.radio}>{selected ? <View style={styles.radioDot} /> : null}</View>
 
         <View style={styles.figure} pointerEvents="none">
-          <GoalSilhouette goal={goal} size={FIGURE_WIDTH} />
+          <Image
+            source={goalImages[goal]}
+            style={[styles.photo, { top: goalPhotoOffset[goal] }]}
+            contentFit="fill"
+            transition={200}
+            accessible={false}
+          />
+          {/* Fades the photo's straight left edge into the card gradient. */}
+          <LinearGradient
+            colors={[goalBlendColor[goal], colors.transparent]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.fade}
+            pointerEvents="none"
+          />
         </View>
 
         <View style={styles.copy}>
-          <Text style={styles.title} numberOfLines={1}>
+          <Text style={styles.title} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
             {title}
           </Text>
           <Text style={styles.description}>{description}</Text>
@@ -119,9 +138,25 @@ const styles = StyleSheet.create({
   figure: {
     position: 'absolute',
     right: 0,
+    top: 0,
     bottom: 0,
     width: FIGURE_WIDTH,
-    alignItems: 'center',
+    // Clips the taller photo to the card, revealing a head-through-torso band.
     overflow: 'hidden',
+  },
+  photo: {
+    position: 'absolute',
+    left: 0,
+    // Rendered at natural aspect (so `fill` doesn't distort); `top` is set
+    // per-goal inline to frame the band.
+    width: FIGURE_WIDTH,
+    height: PHOTO_HEIGHT,
+  },
+  fade: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: FADE_WIDTH,
   },
 });

@@ -38,6 +38,14 @@ export const env = {
   get supabaseAnonKey(): string {
     return requireEnv('EXPO_PUBLIC_SUPABASE_ANON_KEY');
   },
+  /**
+   * Whether the AI assistant is on. The model and credentials live server-side
+   * and are configured through the environment — the client never names or
+   * calls a provider directly. Defaults on so the experience works locally.
+   */
+  get aiEnabled(): boolean {
+    return readEnv('EXPO_PUBLIC_AI_ENABLED') !== 'false';
+  },
   /** True in development builds. */
   isDev: __DEV__,
   appVersion: Constants.expoConfig?.version ?? '0.0.0',
