@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { useId } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Defs, LinearGradient, Stop } from 'react-native-svg';
@@ -15,6 +16,8 @@ type CircularGaugeProps = {
   /** Small caption under the number, e.g. "Excellent". */
   caption?: string;
   gradient?: readonly [string, string];
+  /** Custom centre content. When set, overrides the default label/caption. */
+  children?: ReactNode;
 };
 
 /**
@@ -29,6 +32,7 @@ export function CircularGauge({
   label,
   caption,
   gradient = [colors.success, colors.primary],
+  children,
 }: CircularGaugeProps) {
   const gradientId = `gauge-${useId().replace(/:/g, '')}`;
   const radius = (size - strokeWidth) / 2;
@@ -75,8 +79,12 @@ export function CircularGauge({
         />
       </Svg>
       <View style={styles.center} pointerEvents="none">
-        <Text style={[styles.value, { fontSize: size * 0.3 }]}>{label ?? value}</Text>
-        {caption ? <Text style={styles.caption}>{caption}</Text> : null}
+        {children ?? (
+          <>
+            <Text style={[styles.value, { fontSize: size * 0.3 }]}>{label ?? value}</Text>
+            {caption ? <Text style={styles.caption}>{caption}</Text> : null}
+          </>
+        )}
       </View>
     </View>
   );

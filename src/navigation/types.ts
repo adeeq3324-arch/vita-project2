@@ -1,5 +1,7 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 
+import type { MealType } from '@/types';
+
 /**
  * VITAL AI — Route contracts.
  *
@@ -46,6 +48,7 @@ export type MainStackParamList = {
 
   /** Planning detail screens. */
   MealPlan: undefined;
+  MealDetail: { day: number; type: MealType };
   SupplementPlan: undefined;
   SupplementDetail: { id: string };
 

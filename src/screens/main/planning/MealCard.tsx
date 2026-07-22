@@ -1,5 +1,5 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/ui/Card';
 import { colors, radius, spacing, typography } from '@/theme';
@@ -12,9 +12,12 @@ const mealTypeLabel: Record<PlannedMeal['type'], string> = {
   snack: 'Snack',
 };
 
-/** One meal row in the day plan: thumbnail glyph, name, calories and prep time. */
-export function MealCard({ meal }: { meal: PlannedMeal }) {
-  return (
+/**
+ * One meal row in the day plan: thumbnail glyph, name, calories and prep time.
+ * When `onPress` is provided the row is tappable and opens the meal detail.
+ */
+export function MealCard({ meal, onPress }: { meal: PlannedMeal; onPress?: () => void }) {
+  const content = (
     <Card padding="sm" style={styles.card}>
       <View style={[styles.thumb, { backgroundColor: colors.accentSurface[meal.accent] }]}>
         <MaterialCommunityIcons name={meal.icon} size={26} color={colors.accent[meal.accent]} />
@@ -35,7 +38,21 @@ export function MealCard({ meal }: { meal: PlannedMeal }) {
           </View>
         </View>
       </View>
+      {onPress ? <Feather name="chevron-right" size={18} color={colors.text.disabled} /> : null}
     </Card>
+  );
+
+  if (!onPress) return content;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`${mealTypeLabel[meal.type]}: ${meal.name}`}
+      style={({ pressed }) => pressed && styles.pressed}
+    >
+      {content}
+    </Pressable>
   );
 }
 
@@ -44,6 +61,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.md,
+  },
+  pressed: {
+    opacity: 0.7,
   },
   thumb: {
     width: 60,

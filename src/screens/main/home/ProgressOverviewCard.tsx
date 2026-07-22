@@ -4,14 +4,15 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { colors, layout, radius, spacing, typography } from '@/theme';
 
-import { progressOverview } from './homeData';
+import { progressOverviewFor } from './homeData';
 
 /**
  * Progress Overview: current weight with its monthly delta, goal-progress
- * percentage with a bar, and the active day streak.
+ * percentage with a bar, and the active day streak. Reflects the day selected
+ * in the week strip.
  */
-export function ProgressOverviewCard() {
-  const { weight, goal, streak } = progressOverview;
+export function ProgressOverviewCard({ date }: { date: Date }) {
+  const { weight, goal, streak } = progressOverviewFor(date);
 
   return (
     <Card>

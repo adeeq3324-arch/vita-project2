@@ -4,13 +4,16 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { colors, radius, spacing, typography } from '@/theme';
 
-import { dailyMetrics, type Metric } from './homeData';
+import { dailyMetricsFor, type Metric } from './homeData';
 
 /**
  * Daily Health Overview: a three-column grid of metric tiles (calories,
- * protein, carbs, fat, water, steps), each with a mini progress bar.
+ * protein, carbs, fat, water, steps), each with a mini progress bar. Reflects
+ * the day selected in the week strip.
  */
-export function OverviewGrid() {
+export function OverviewGrid({ date }: { date: Date }) {
+  const dailyMetrics = dailyMetricsFor(date);
+
   return (
     <View style={styles.grid}>
       {dailyMetrics.map((metric) => (

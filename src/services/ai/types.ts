@@ -22,6 +22,21 @@ export type DayPlan = {
   meals: PlannedMeal[];
 };
 
+export type MealDetail = {
+  type: MealType;
+  name: string;
+  icon: AIIcon;
+  accent: AccentName;
+  kcal: number;
+  prepMin: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  ingredients: string[];
+  steps: string[];
+  tip: string;
+};
+
 export type MacroTotals = {
   kcal: number;
   protein: number;
@@ -51,7 +66,6 @@ export type SupplementDetail = {
 export type WeekSummary = {
   mealsPlanned: number;
   supplements: number;
-  recipes: number;
 };
 
 export type ScanNutrient = { label: string; value: number; unit: string };

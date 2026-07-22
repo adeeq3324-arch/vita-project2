@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View, type ImageSourcePropType } from 'react-native';
 
 import { colors, radius, shadows, spacing, typography } from '@/theme';
 import type { AIIcon } from '@/services/ai/types';
@@ -11,13 +11,17 @@ type PlanCardProps = {
   icon: AIIcon;
   gradient: readonly [string, string];
   onPress: () => void;
+  /** CTA pill label — e.g. "Generate" before a plan exists, "View Plan" after. */
+  ctaLabel?: string;
+  /** Optional artwork image; when set it replaces the glyph in the art circle. */
+  image?: ImageSourcePropType;
 };
 
 /**
- * Full-bleed gradient plan card (Meal Plan / Supplement Plan) with a "View
- * Plan" pill and a large glyph standing in for the plan artwork.
+ * Full-bleed gradient plan card (Meal Plan / Supplement Plan) with a CTA pill
+ * and plan artwork — a photo when provided, otherwise a large glyph.
  */
-export function PlanCard({ title, subtitle, icon, gradient, onPress }: PlanCardProps) {
+export function PlanCard({ title, subtitle, icon, gradient, onPress, ctaLabel = 'View Plan', image }: PlanCardProps) {
   return (
     <Pressable
       onPress={onPress}
@@ -30,12 +34,16 @@ export function PlanCard({ title, subtitle, icon, gradient, onPress }: PlanCardP
           <Text style={styles.title}>{title}</Text>
           <Text style={styles.subtitle}>{subtitle}</Text>
           <View style={styles.button}>
-            <Text style={styles.buttonText}>View Plan</Text>
+            <Text style={styles.buttonText}>{ctaLabel}</Text>
             <MaterialCommunityIcons name="arrow-right" size={15} color={colors.white} />
           </View>
         </View>
         <View style={styles.art}>
-          <MaterialCommunityIcons name={icon} size={56} color="rgba(255,255,255,0.9)" />
+          {image ? (
+            <Image source={image} style={styles.artImage} resizeMode="cover" />
+          ) : (
+            <MaterialCommunityIcons name={icon} size={56} color="rgba(255,255,255,0.9)" />
+          )}
         </View>
       </LinearGradient>
     </Pressable>
@@ -92,5 +100,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: spacing.md,
+    overflow: 'hidden',
+  },
+  artImage: {
+    width: '100%',
+    height: '100%',
   },
 });

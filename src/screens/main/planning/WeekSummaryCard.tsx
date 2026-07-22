@@ -4,12 +4,11 @@ import { Card } from '@/components/ui/Card';
 import { colors, layout, spacing, typography } from '@/theme';
 import type { WeekSummary } from '@/services/ai';
 
-/** "This Week Summary": planned meals, supplements and recipes at a glance. */
+/** "This Week Summary": planned meals and supplements at a glance. */
 export function WeekSummaryCard({ summary }: { summary: WeekSummary }) {
   const cells = [
     { value: summary.mealsPlanned, label: 'Meals Planned' },
     { value: summary.supplements, label: 'Supplements' },
-    { value: summary.recipes, label: 'Recipes' },
   ];
   return (
     <Card>

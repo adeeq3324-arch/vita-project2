@@ -7,6 +7,7 @@ import { ColorAnalysisScreen } from '@/screens/main/ColorAnalysisScreen';
 import { FoodScanResultScreen } from '@/screens/main/FoodScanResultScreen';
 import { FoodScannerScreen } from '@/screens/main/FoodScannerScreen';
 import { FoodTrackingScreen } from '@/screens/main/FoodTrackingScreen';
+import { MealDetailScreen } from '@/screens/main/MealDetailScreen';
 import { MealPlanScreen } from '@/screens/main/MealPlanScreen';
 import { ProfileScreen } from '@/screens/main/ProfileScreen';
 import { RemindersScreen } from '@/screens/main/RemindersScreen';
@@ -41,6 +42,7 @@ export function MainNavigator() {
       <Stack.Screen name="Settings" component={SettingsScreen} />
 
       <Stack.Screen name="MealPlan" component={MealPlanScreen} />
+      <Stack.Screen name="MealDetail" component={MealDetailScreen} />
       <Stack.Screen name="SupplementPlan" component={SupplementPlanScreen} />
       <Stack.Screen name="SupplementDetail" component={SupplementDetailScreen} />
 

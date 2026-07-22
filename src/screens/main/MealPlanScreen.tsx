@@ -1,20 +1,44 @@
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { DetailHeader } from '@/components/layout/DetailHeader';
 import { Screen } from '@/components/layout/Screen';
 import { Card } from '@/components/ui/Card';
 import { useOnboarding } from '@/context/OnboardingContext';
+import { usePlan } from '@/context/PlanContext';
 import { dailyTotals, mealPlan } from '@/services/ai';
 import { colors, radius, spacing, typography } from '@/theme';
-import { Pressable } from 'react-native';
+import type { MainStackParamList } from '@/navigation/types';
 
+import { GenerateGate } from './planning/GenerateGate';
 import { MealCard } from './planning/MealCard';
 
-export function MealPlanScreen() {
+type Props = NativeStackScreenProps<MainStackParamList, 'MealPlan'>;
+
+export function MealPlanScreen({ navigation }: Props) {
   const { data } = useOnboarding();
-  const plan = mealPlan(data);
+  const { status, generate } = usePlan();
   const [dayIndex, setDayIndex] = useState(0);
+
+  if (status.meal !== 'ready') {
+    return (
+      <Screen edges={{ top: true, bottom: false }}>
+        <DetailHeader title="Meal Plan" />
+        <GenerateGate
+          icon="silverware-fork-knife"
+          accent="green"
+          title="Your AI Meal Plan"
+          description="Generate a 7-day meal plan built around your goal, calorie target and food preferences."
+          points={['7 days of meals', 'Calories & macros balanced', 'Full recipe for every meal']}
+          loading={status.meal === 'generating'}
+          onGenerate={() => generate('meal')}
+        />
+      </Screen>
+    );
+  }
+
+  const plan = mealPlan(data);
   const day = plan[dayIndex]!;
   const totals = dailyTotals(day);
 
@@ -52,7 +76,11 @@ export function MealPlanScreen() {
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
         {day.meals.map((meal) => (
-          <MealCard key={meal.type} meal={meal} />
+          <MealCard
+            key={meal.type}
+            meal={meal}
+            onPress={() => navigation.navigate('MealDetail', { day: day.day, type: meal.type })}
+          />
         ))}
 
         <Card style={styles.totals}>

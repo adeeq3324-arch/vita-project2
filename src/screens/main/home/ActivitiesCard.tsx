@@ -4,13 +4,15 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { colors, layout, radius, spacing, typography } from '@/theme';
 
-import { activities, type Activity } from './homeData';
+import { activitiesFor, type Activity } from './homeData';
 
 /**
  * Today's Activities: Meals, Workout, Supplements, Reminders — each a row with
- * its completion state on the right.
+ * its completion state on the right. Reflects the day selected in the week strip.
  */
-export function ActivitiesCard() {
+export function ActivitiesCard({ date }: { date: Date }) {
+  const activities = activitiesFor(date);
+
   return (
     <Card padding="none" style={styles.card}>
       {activities.map((activity, index) => (

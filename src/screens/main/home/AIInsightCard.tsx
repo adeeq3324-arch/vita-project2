@@ -3,13 +3,15 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { colors, radius, spacing, typography } from '@/theme';
 
-import { aiInsight } from './homeData';
+import { aiInsightFor } from './homeData';
 
 /**
  * AI Health Insight: a soft violet panel with a robot mark and a personalised
- * recommendation (mock copy for now).
+ * recommendation (mock copy for now). Reflects the day selected in the week strip.
  */
-export function AIInsightCard() {
+export function AIInsightCard({ date }: { date: Date }) {
+  const aiInsight = aiInsightFor(date);
+
   return (
     <View style={styles.card}>
       <View style={styles.robot}>

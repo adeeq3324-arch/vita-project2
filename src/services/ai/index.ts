@@ -16,6 +16,7 @@ export { coachGreeting, coachReply, coachSuggestions } from './coach';
 export {
   aiRecommendation,
   dailyTotals,
+  mealDetail,
   mealPlan,
   supplementDetail,
   supplementSchedule,
@@ -28,6 +29,7 @@ export type {
   FoodScanResult,
   FreshnessResult,
   MacroTotals,
+  MealDetail,
   PlannedMeal,
   ProductResult,
   Supplement,

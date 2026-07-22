@@ -1,49 +1,41 @@
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Card } from '@/components/ui/Card';
-import { Segmented } from '@/components/ui/Segmented';
 import { useOnboarding } from '@/context/OnboardingContext';
-import { aiRecommendation, mealPlan, supplementSchedule, weekSummary } from '@/services/ai';
+import { usePlan, type PlanStatus } from '@/context/PlanContext';
+import { aiRecommendation, weekSummary } from '@/services/ai';
 import { colors, gradients, layout, spacing, typography } from '@/theme';
 import type { MainStackParamList, MainTabParamList } from '@/navigation/types';
 
 import { AIRecommendationCard } from './planning/AIRecommendationCard';
-import { MealCard } from './planning/MealCard';
 import { PlanCard } from './planning/PlanCard';
-import { SupplementTimeline } from './planning/SupplementTimeline';
 import { WeekSummaryCard } from './planning/WeekSummaryCard';
 
 type Props = BottomTabScreenProps<MainTabParamList, 'Planning'>;
-type Tab = 'overview' | 'meals' | 'supplements';
 
-const tabs = [
-  { value: 'overview', label: 'Overview' },
-  { value: 'meals', label: 'Meal Plan' },
-  { value: 'supplements', label: 'Supplements' },
-] as const;
+/** CTA pill label reflecting whether a plan has been generated yet. */
+function ctaLabel(status: PlanStatus): string {
+  if (status === 'ready') return 'View Plan';
+  if (status === 'generating') return 'Generating…';
+  return 'Generate';
+}
 
 export function PlanningScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { data } = useOnboarding();
-  const [tab, setTab] = useState<Tab>('overview');
+  const { status } = usePlan();
 
   const stack = navigation.getParent<NativeStackNavigationProp<MainStackParamList>>();
   const openMealPlan = () => stack?.navigate('MealPlan');
   const openSupplements = () => stack?.navigate('SupplementPlan');
-  const openSupplement = (id: string) => stack?.navigate('SupplementDetail', { id });
-
-  const supplements = supplementSchedule(data);
-  const firstDay = mealPlan(data)[0]!;
 
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <Text style={styles.title}>Planning</Text>
-        <Segmented options={tabs} value={tab} onChange={setTab} />
+        <Text style={styles.subtitle}>Generate a plan tailored to your goal</Text>
       </View>
 
       <ScrollView
@@ -53,52 +45,28 @@ export function PlanningScreen({ navigation }: Props) {
           { paddingBottom: insets.bottom + layout.tabBarHeight + spacing.xl },
         ]}
       >
-        {tab === 'overview' ? (
-          <>
-            <PlanCard
-              title="Meal Plan"
-              subtitle="Personalized 7-day meal plan"
-              icon="silverware-fork-knife"
-              gradient={gradients.weightLoss}
-              onPress={openMealPlan}
-            />
-            <PlanCard
-              title="Supplement Plan"
-              subtitle="Personalized supplement schedule"
-              icon="pill"
-              gradient={gradients.healthyLifestyle}
-              onPress={openSupplements}
-            />
-            <Text style={styles.sectionTitle}>This Week Summary</Text>
-            <WeekSummaryCard summary={weekSummary(data)} />
-            <AIRecommendationCard text={aiRecommendation(data)} />
-          </>
-        ) : null}
+        <PlanCard
+          title="Meal Plan"
+          subtitle="Personalized 7-day meal plan"
+          icon="silverware-fork-knife"
+          image={require('../../../assets/images/planning/meal-plan.jpg')}
+          gradient={gradients.weightLoss}
+          ctaLabel={ctaLabel(status.meal)}
+          onPress={openMealPlan}
+        />
+        <PlanCard
+          title="Supplement Plan"
+          subtitle="Personalized monthly supplement plan"
+          icon="pill"
+          image={require('../../../assets/images/planning/supplement-plan.jpg')}
+          gradient={gradients.healthyLifestyle}
+          ctaLabel={ctaLabel(status.supplement)}
+          onPress={openSupplements}
+        />
 
-        {tab === 'meals' ? (
-          <>
-            <Text style={styles.sectionTitle}>Today · Day 1</Text>
-            {firstDay.meals.map((meal) => (
-              <MealCard key={meal.type} meal={meal} />
-            ))}
-            <PlanCard
-              title="7-Day Meal Plan"
-              subtitle="See every day and daily totals"
-              icon="calendar-week"
-              gradient={gradients.weightLoss}
-              onPress={openMealPlan}
-            />
-          </>
-        ) : null}
-
-        {tab === 'supplements' ? (
-          <>
-            <Text style={styles.sectionTitle}>Daily Schedule</Text>
-            <Card>
-              <SupplementTimeline supplements={supplements} onSelect={openSupplement} />
-            </Card>
-          </>
-        ) : null}
+        <Text style={styles.sectionTitle}>This Week Summary</Text>
+        <WeekSummaryCard summary={weekSummary(data)} />
+        <AIRecommendationCard text={aiRecommendation(data)} />
       </ScrollView>
     </View>
   );
@@ -112,12 +80,16 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: layout.screenPadding,
     paddingBottom: spacing.md,
-    gap: spacing.base,
+    gap: spacing.xs,
     backgroundColor: colors.background,
   },
   title: {
     ...typography.h1,
     color: colors.text.primary,
+  },
+  subtitle: {
+    ...typography.body,
+    color: colors.text.secondary,
   },
   content: {
     paddingHorizontal: layout.screenPadding,

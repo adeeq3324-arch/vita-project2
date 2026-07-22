@@ -7,6 +7,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { FoodDiaryProvider } from '@/context/FoodDiaryContext';
 import { OnboardingProvider } from '@/context/OnboardingContext';
+import { PlanProvider } from '@/context/PlanContext';
 import { RootNavigator } from '@/navigation';
 import { navigationTheme } from '@/theme';
 
@@ -16,10 +17,12 @@ export default function App() {
       <SafeAreaProvider>
         <OnboardingProvider>
           <FoodDiaryProvider>
-            <NavigationContainer theme={navigationTheme}>
-              <StatusBar style="dark" />
-              <RootNavigator />
-            </NavigationContainer>
+            <PlanProvider>
+              <NavigationContainer theme={navigationTheme}>
+                <StatusBar style="dark" />
+                <RootNavigator />
+              </NavigationContainer>
+            </PlanProvider>
           </FoodDiaryProvider>
         </OnboardingProvider>
       </SafeAreaProvider>

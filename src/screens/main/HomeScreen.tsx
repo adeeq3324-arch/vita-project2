@@ -1,5 +1,6 @@
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { useState } from 'react';
 import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -10,11 +11,13 @@ import type { MainStackParamList, MainTabParamList } from '@/navigation/types';
 
 import { ActivitiesCard } from './home/ActivitiesCard';
 import { AIInsightCard } from './home/AIInsightCard';
+import { activitiesFor, completedCount, dayLabel } from './home/homeData';
 import { HealthScoreCard } from './home/HealthScoreCard';
 import { HomeHeader } from './home/HomeHeader';
 import { MotivationCard } from './home/MotivationCard';
 import { OverviewGrid } from './home/OverviewGrid';
 import { ProgressOverviewCard } from './home/ProgressOverviewCard';
+import { WeekStrip } from './home/WeekStrip';
 
 type Props = BottomTabScreenProps<MainTabParamList, 'Home'>;
 
@@ -22,6 +25,13 @@ export function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { data } = useOnboarding();
   const firstName = data.username.trim() || 'there';
+
+  const [selectedDay, setSelectedDay] = useState(() => new Date());
+
+  // Section headers and the activities count follow the selected day.
+  const label = dayLabel(selectedDay);
+  const dayActivities = activitiesFor(selectedDay);
+  const activitiesDone = completedCount(dayActivities);
 
   // Profile lives in the parent stack (it isn't a tab), so reach it via the parent.
   const openProfile = () =>
@@ -47,29 +57,34 @@ export function HomeScreen({ navigation }: Props) {
           { paddingBottom: insets.bottom + layout.tabBarHeight + spacing.xl },
         ]}
       >
-        <HealthScoreCard />
+        <WeekStrip selected={selectedDay} onSelect={setSelectedDay} />
+
+        <HealthScoreCard date={selectedDay} />
 
         <View style={styles.section}>
-          <SectionHeader title="Today's Overview" action="Edit" onActionPress={() => {}} />
-          <OverviewGrid />
+          <SectionHeader title={`${label}'s Overview`} action="Edit" onActionPress={() => {}} />
+          <OverviewGrid date={selectedDay} />
         </View>
 
         <View style={styles.section}>
-          <SectionHeader title="Today's Activities" action="4/5 Completed" />
-          <ActivitiesCard />
+          <SectionHeader
+            title={`${label}'s Activities`}
+            action={`${activitiesDone}/${dayActivities.length} Completed`}
+          />
+          <ActivitiesCard date={selectedDay} />
         </View>
 
         <View style={styles.section}>
-          <AIInsightCard />
+          <AIInsightCard date={selectedDay} />
         </View>
 
         <View style={styles.section}>
           <SectionHeader title="Progress Overview" />
-          <ProgressOverviewCard />
+          <ProgressOverviewCard date={selectedDay} />
         </View>
 
         <View style={styles.section}>
-          <MotivationCard />
+          <MotivationCard date={selectedDay} />
         </View>
       </ScrollView>
     </View>
