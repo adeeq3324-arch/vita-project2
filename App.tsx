@@ -9,7 +9,13 @@ import { FoodDiaryProvider } from '@/context/FoodDiaryContext';
 import { OnboardingProvider } from '@/context/OnboardingContext';
 import { PlanProvider } from '@/context/PlanContext';
 import { RootNavigator } from '@/navigation';
+import { initAuth, loadSession } from '@/services';
 import { navigationTheme } from '@/theme';
+
+// Bind the API client to the session store and restore any persisted session
+// before the first render, so authenticated requests work from the start.
+initAuth();
+void loadSession();
 
 export default function App() {
   return (

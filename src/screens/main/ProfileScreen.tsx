@@ -72,11 +72,25 @@ export function ProfileScreen({ navigation }: Props) {
 
         <Text style={styles.sectionTitle}>Account</Text>
         <Card padding="none" style={styles.listCard}>
-          <ListRow icon="account-edit-outline" label="Edit Profile" onPress={() => {}} />
+          <ListRow
+            icon="account-edit-outline"
+            label="Edit Profile"
+            onPress={() => navigation.navigate('EditProfile')}
+          />
           <View style={styles.divider} />
-          <ListRow icon="target" label="Change Goal" onPress={() => {}} />
+          <ListRow
+            icon="target"
+            label="Change Goal"
+            value={goalLabel(data.goal)}
+            onPress={() => navigation.navigate('ChangeGoal')}
+          />
           <View style={styles.divider} />
-          <ListRow icon="heart-pulse" label="Health Conditions" onPress={() => {}} />
+          <ListRow
+            icon="heart-pulse"
+            label="Health Conditions"
+            value={conditions > 0 ? `${conditions}` : 'None'}
+            onPress={() => navigation.navigate('EditHealthConditions')}
+          />
         </Card>
 
         <Text style={styles.sectionTitle}>Preferences</Text>

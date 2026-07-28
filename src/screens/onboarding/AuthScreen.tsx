@@ -11,13 +11,18 @@ import type { OnboardingStackParamList } from '@/navigation/types';
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'Auth'>;
 
-// Order follows the design brief: Google, Apple, Facebook.
-const providers: SocialProvider[] = ['google', 'apple', 'facebook'];
+// Email leads, followed by the social providers.
+const providers: SocialProvider[] = ['email', 'google', 'apple'];
 
 export function AuthScreen({ navigation }: Props) {
-  // UI only — any provider drops the user into the app for now. Real auth and
-  // the choice of where to route (existing vs new account) land with the backend.
-  const handleContinue = (_provider: SocialProvider) => {
+  // UI only — social providers drop the user into the app for now, while Email
+  // opens the email + password flow. Real auth and account routing land with
+  // the backend.
+  const handleContinue = (provider: SocialProvider) => {
+    if (provider === 'email') {
+      navigation.navigate('EmailSignUp');
+      return;
+    }
     navigation.getParent()?.navigate('Main');
   };
 

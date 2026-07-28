@@ -1,20 +1,25 @@
-import { FontAwesome } from '@expo/vector-icons';
+import { Feather, FontAwesome } from '@expo/vector-icons';
 import { Pressable, StyleSheet, Text, View, type ViewStyle } from 'react-native';
 
 import { GoogleGlyph } from '@/components/brand/GoogleGlyph';
 import { colors, layout, radius, shadows, typography } from '@/theme';
 
-export type SocialProvider = 'google' | 'apple' | 'facebook';
+export type SocialProvider = 'email' | 'google' | 'apple';
 
 /**
- * Official third-party brand treatments. These hex values are fixed by each
- * provider's brand guidelines, so they live here rather than in the app's
- * design-system palette.
+ * "Continue with …" button treatments. Google and Apple follow each provider's
+ * brand guidelines (fixed hex values); the Email option uses the app's own
+ * violet primary, since it leads to our email + password flow.
  */
 const providers: Record<
   SocialProvider,
   { label: string; background: string; foreground: string; border?: string }
 > = {
+  email: {
+    label: 'Continue with Email',
+    background: colors.primary,
+    foreground: colors.onPrimary,
+  },
   google: {
     label: 'Continue with Google',
     background: colors.white,
@@ -26,24 +31,14 @@ const providers: Record<
     background: colors.black,
     foreground: colors.white,
   },
-  facebook: {
-    label: 'Continue with Facebook',
-    background: '#1877F2',
-    foreground: colors.white,
-  },
 };
 
 const ICON_SIZE = 20;
 
 function ProviderIcon({ provider, color }: { provider: SocialProvider; color: string }) {
   if (provider === 'google') return <GoogleGlyph size={ICON_SIZE} />;
-  return (
-    <FontAwesome
-      name={provider === 'apple' ? 'apple' : 'facebook'}
-      size={provider === 'apple' ? ICON_SIZE + 2 : ICON_SIZE}
-      color={color}
-    />
-  );
+  if (provider === 'email') return <Feather name="mail" size={ICON_SIZE} color={color} />;
+  return <FontAwesome name="apple" size={ICON_SIZE + 2} color={color} />;
 }
 
 type SocialButtonProps = {

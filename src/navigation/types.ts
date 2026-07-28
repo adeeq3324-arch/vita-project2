@@ -23,6 +23,12 @@ export type OnboardingStackParamList = {
   HealthConditions: undefined;
   UserInformation: undefined;
   Auth: undefined;
+  /** Email + password sign-up, reached from the "Continue with Email" button. */
+  EmailSignUp: undefined;
+  /** Email + password login for returning users, reached from "Log in". */
+  EmailLogin: undefined;
+  /** Password-reset request flow, reached from the sign-up screen. */
+  ForgotPassword: undefined;
 };
 
 export type MainTabParamList = {
@@ -43,6 +49,9 @@ export type MainStackParamList = {
 
   /** Profile and its sub-screens (reached from the header, not tabs). */
   Profile: undefined;
+  EditProfile: undefined;
+  ChangeGoal: undefined;
+  EditHealthConditions: undefined;
   Reminders: undefined;
   Settings: undefined;
 

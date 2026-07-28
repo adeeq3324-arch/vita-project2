@@ -7,16 +7,27 @@ Premium AI Fitness & Health mobile app. React Native + Expo + TypeScript.
 ```bash
 npm install
 cp .env.example .env   # then fill in the values
-npm start
+npm run dev
 ```
 
 Then press `i` for iOS, `a` for Android.
+
+`npm run dev` starts the **whole stack**: it builds and boots the NestJS backend,
+waits until its `/health` probe passes, and only then starts Expo. Use it rather
+than `npm start` — the app reads all of its data over HTTP, so when the backend
+is not listening every screen fails at the transport layer (`Failed to fetch` on
+web, `Network request failed` on native). Starting Expo alone is the single most
+common cause of those errors.
 
 ## Scripts
 
 | Command | Purpose |
 | --- | --- |
-| `npm start` | Start the Expo dev server |
+| `npm run dev` | Backend + Expo together (recommended) |
+| `npm run dev:web` | Same, with Expo in web mode |
+| `npm run dev:fast` | Same, skipping the backend rebuild |
+| `npm run backend` | Backend only |
+| `npm start` | Expo dev server only (needs the backend already running) |
 | `npm run ios` / `npm run android` | Start and open on a simulator |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm run lint` | ESLint via `expo lint` |
@@ -84,3 +95,24 @@ it switches between the `Auth`, `Onboarding` and `Main` navigators.
   every value in `.env` as public.
 - Feature-specific components live beside their screen; only genuinely shared
   ones go in `src/components/`.
+
+## Troubleshooting
+
+**"Cannot reach the VITAL AI server"** — the request never got a response. In
+order of likelihood:
+
+1. **The backend is not running.** Check it: `curl http://localhost:3000/health`
+   should return `{"status":"ok",…}`. Fix: use `npm run dev`, which will not
+   start Expo until the API is healthy.
+2. **Redis or Postgres is down.** `/health` returns `status: "error"` with the
+   failing component named. Redis must be listening on `localhost:6379`.
+3. **Wrong host for the platform.** `EXPO_PUBLIC_API_URL=http://localhost:3000`
+   is correct for web and the iOS simulator. On a physical device `localhost`
+   means the phone itself — `src/config/env.ts` rewrites it to the Metro host
+   automatically, so this only bites if Metro's host cannot be resolved.
+
+The API client retries transient failures (transport errors, timeouts, 5xx)
+with exponential backoff on idempotent requests, so a brief blip recovers on its
+own. `POST`/`PATCH` are not retried by default — a replay could duplicate a
+write the server already accepted — but individual calls can opt in with
+`{ retry: true }`.

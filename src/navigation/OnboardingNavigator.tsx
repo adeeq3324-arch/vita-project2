@@ -1,6 +1,9 @@
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import { AuthScreen } from '@/screens/onboarding/AuthScreen';
+import { EmailLoginScreen } from '@/screens/onboarding/EmailLoginScreen';
+import { EmailSignUpScreen } from '@/screens/onboarding/EmailSignUpScreen';
+import { ForgotPasswordScreen } from '@/screens/onboarding/ForgotPasswordScreen';
 import { GoalSelectionScreen } from '@/screens/onboarding/GoalSelectionScreen';
 import { HealthConditionsScreen } from '@/screens/onboarding/HealthConditionsScreen';
 import { UserInformationScreen } from '@/screens/onboarding/UserInformationScreen';
@@ -32,6 +35,9 @@ export function OnboardingNavigator() {
       <Stack.Screen name="HealthConditions" component={HealthConditionsScreen} />
       <Stack.Screen name="UserInformation" component={UserInformationScreen} />
       <Stack.Screen name="Auth" component={AuthScreen} />
+      <Stack.Screen name="EmailSignUp" component={EmailSignUpScreen} />
+      <Stack.Screen name="EmailLogin" component={EmailLoginScreen} />
+      <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
     </Stack.Navigator>
   );
 }

@@ -1,0 +1,104 @@
+# Local development stack for the VITAL AI backend.
+#   - postgres : primary database (Supabase-compatible Postgres 17)
+#   - redis    : cache + BullMQ queue backend
+#   - migrate  : one-off job that applies Drizzle migrations and seeds reference
+#                data (the food catalogue), then exits
+#   - api      : the NestJS application
+#
+# Usage:
+#   cp .env.example .env   # adjust as needed
+#   docker compose up --build
+
+name: vital-ai
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vital}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vital}
+      POSTGRES_DB: ${POSTGRES_DB:-vital_ai}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-vital} -d ${POSTGRES_DB:-vital_ai}']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  migrate:
+    build:
+      context: .
+      target: build
+    # Migrate, then seed. Both steps are idempotent, so the job is safe to
+    # re-run on every `compose up`.
+    command:
+      ['sh', '-c', 'node dist/database/migrate.js && node dist/database/seed.js']
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-vital}:${POSTGRES_PASSWORD:-vital}@postgres:5432/${POSTGRES_DB:-vital_ai}
+      DATABASE_SSL: 'false'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: 'no'
+
+  api:
+    build:
+      context: .
+      target: runtime
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      APP_NAME: ${APP_NAME:-VITAL AI API}
+      PORT: 3000
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      DATABASE_URL: postgres://${POSTGRES_USER:-vital}:${POSTGRES_PASSWORD:-vital}@postgres:5432/${POSTGRES_DB:-vital_ai}
+      DATABASE_SSL: 'false'
+      DATABASE_MAX_CONNECTIONS: ${DATABASE_MAX_CONNECTIONS:-10}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_TLS: 'false'
+      SUPABASE_URL: ${SUPABASE_URL:-}
+      SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY:-}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY:-}
+      SUPABASE_SCANS_BUCKET: ${SUPABASE_SCANS_BUCKET:-scans}
+      # Generative model access. Passed straight through from the host
+      # environment: the image is provider-agnostic, so which service the API
+      # talks to is a deployment decision, never a build-time one.
+      AI_PROVIDER_ID: ${AI_PROVIDER_ID:-}
+      AI_BASE_URL: ${AI_BASE_URL:-}
+      AI_MODEL_NAME: ${AI_MODEL_NAME:-}
+      AI_API_KEY: ${AI_API_KEY:-}
+      AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-60000}
+      AI_MAX_RETRIES: ${AI_MAX_RETRIES:-2}
+    ports:
+      - '${PORT:-3000}:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-data:
+  redis-data:

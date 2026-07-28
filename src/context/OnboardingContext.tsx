@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useMemo, useReducer, type ReactNode } from 'react';
 
+import { nextConditions } from '@/utils/healthConditions';
 import type { ActivityLevel, Gender, HealthCondition, PrimaryGoal } from '@/types';
 
 /**
@@ -42,21 +43,8 @@ type Action =
   | { type: 'setField'; field: OnboardingTextField; value: string }
   | { type: 'setGender'; gender: Gender }
   | { type: 'setActivityLevel'; activityLevel: ActivityLevel }
+  | { type: 'update'; patch: Partial<OnboardingData> }
   | { type: 'reset' };
-
-/**
- * "None of these" is mutually exclusive with every real condition: choosing it
- * clears the others, and choosing any other condition clears it.
- */
-function nextConditions(current: HealthCondition[], condition: HealthCondition): HealthCondition[] {
-  if (condition === 'none') {
-    return current.includes('none') ? [] : ['none'];
-  }
-  const withoutNone = current.filter((item) => item !== 'none');
-  return withoutNone.includes(condition)
-    ? withoutNone.filter((item) => item !== condition)
-    : [...withoutNone, condition];
-}
 
 function reducer(state: OnboardingData, action: Action): OnboardingData {
   switch (action.type) {
@@ -70,6 +58,8 @@ function reducer(state: OnboardingData, action: Action): OnboardingData {
       return { ...state, gender: action.gender };
     case 'setActivityLevel':
       return { ...state, activityLevel: action.activityLevel };
+    case 'update':
+      return { ...state, ...action.patch };
     case 'reset':
       return initialData;
   }
@@ -82,6 +72,12 @@ type OnboardingContextValue = {
   setField: (field: OnboardingTextField, value: string) => void;
   setGender: (gender: Gender) => void;
   setActivityLevel: (activityLevel: ActivityLevel) => void;
+  /**
+   * Commits several fields at once. Onboarding edits field by field as the user
+   * types; the profile edit screens instead keep a local draft and apply it in
+   * one go when the user saves, so cancelling leaves the profile untouched.
+   */
+  update: (patch: Partial<OnboardingData>) => void;
   reset: () => void;
   /** True once every field on the User Information screen has a value. */
   isProfileComplete: boolean;
@@ -106,6 +102,10 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
     (activityLevel: ActivityLevel) => dispatch({ type: 'setActivityLevel', activityLevel }),
     [],
   );
+  const update = useCallback(
+    (patch: Partial<OnboardingData>) => dispatch({ type: 'update', patch }),
+    [],
+  );
   const reset = useCallback(() => dispatch({ type: 'reset' }), []);
 
   const isProfileComplete =
@@ -125,10 +125,21 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       setField,
       setGender,
       setActivityLevel,
+      update,
       reset,
       isProfileComplete,
     }),
-    [data, setGoal, toggleCondition, setField, setGender, setActivityLevel, reset, isProfileComplete],
+    [
+      data,
+      setGoal,
+      toggleCondition,
+      setField,
+      setGender,
+      setActivityLevel,
+      update,
+      reset,
+      isProfileComplete,
+    ],
   );
 
   return <OnboardingContext.Provider value={value}>{children}</OnboardingContext.Provider>;

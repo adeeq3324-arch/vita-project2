@@ -7,28 +7,13 @@ import { StepDots } from '@/components/onboarding/StepDots';
 import { Button } from '@/components/ui/Button';
 import { Field } from '@/components/ui/Field';
 import { Input } from '@/components/ui/Input';
-import { Select, type SelectOption } from '@/components/ui/Select';
+import { Select } from '@/components/ui/Select';
+import { activityOptions, genderOptions } from '@/constants/profileOptions';
 import { useOnboarding } from '@/context/OnboardingContext';
 import { colors, spacing, typography } from '@/theme';
-import type { ActivityLevel, Gender } from '@/types';
 import type { OnboardingStackParamList } from '@/navigation/types';
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'UserInformation'>;
-
-const genderOptions: readonly SelectOption<Gender>[] = [
-  { value: 'male', label: 'Male' },
-  { value: 'female', label: 'Female' },
-  { value: 'other', label: 'Other' },
-  { value: 'prefer_not_to_say', label: 'Prefer not to say' },
-];
-
-const activityOptions: readonly SelectOption<ActivityLevel>[] = [
-  { value: 'sedentary', label: 'Sedentary — little or no exercise' },
-  { value: 'lightly_active', label: 'Lightly Active — 1–3 days a week' },
-  { value: 'moderately_active', label: 'Moderately Active — 3–5 days a week' },
-  { value: 'very_active', label: 'Very Active — 6–7 days a week' },
-  { value: 'extremely_active', label: 'Extremely Active — physical job or twice daily' },
-];
 
 export function UserInformationScreen({ navigation }: Props) {
   const { data, setField, setGender, setActivityLevel, isProfileComplete } = useOnboarding();

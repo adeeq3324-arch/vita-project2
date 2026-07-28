@@ -5,15 +5,22 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors, fontSize, fontWeight, gradients, radius, shadows, spacing } from '@/theme';
 import type { PrimaryGoal } from '@/types';
 
-import { GOAL_PHOTO_ASPECT, goalBlendColor, goalImages, goalPhotoOffset } from './goalImages';
+import { goalImages } from './goalImages';
 
 const CARD_HEIGHT = 148;
-/** Width reserved on the right of the card for the photo. */
-const FIGURE_WIDTH = 158;
-/** Full-width render height of the photo before the card clips it. */
-const PHOTO_HEIGHT = Math.round(FIGURE_WIDTH / GOAL_PHOTO_ASPECT);
-/** Width of the fade that blends the photo's left edge into the card. */
-const FADE_WIDTH = 72;
+/**
+ * Width of the photo column on the right. The portraits are tall (591×1280),
+ * so a `cover` fit is width-driven at this box: a narrower box means a smaller
+ * scale, which reveals more of the body vertically (head → shoulders → chest)
+ * rather than zooming into the face. At ~100px the figure reads as head-and-
+ * chest and occupies ~30–35% of the card width on a typical phone. Because the
+ * fit is width-driven, the full image width is shown, so the left/right edges
+ * are the photo's own gradient margins and blend into the card seamlessly —
+ * only the waist is cropped, bleeding off the bottom like the reference design.
+ */
+const FIGURE_WIDTH = 100;
+/** Gutter between the photo and the card's right edge. */
+const FIGURE_RIGHT_PADDING = 16;
 
 const gradientByGoal: Record<PrimaryGoal, readonly [string, string]> = {
   muscle_gain: gradients.muscleGain,
@@ -52,20 +59,20 @@ export function GoalCard({ goal, title, description, selected, onPress }: GoalCa
         <View style={styles.radio}>{selected ? <View style={styles.radioDot} /> : null}</View>
 
         <View style={styles.figure} pointerEvents="none">
+          {/*
+           * Anchored to the top so the crop starts at the head and runs down
+           * through the shoulders and chest; the waist falls past the card's
+           * bottom edge and bleeds off. `cover` is width-driven in this narrow
+           * box, so no side of the body is cut — the person's upper body reads
+           * clearly and the photo's gradient margins blend into the card.
+           */}
           <Image
             source={goalImages[goal]}
-            style={[styles.photo, { top: goalPhotoOffset[goal] }]}
-            contentFit="fill"
+            style={StyleSheet.absoluteFill}
+            contentFit="cover"
+            contentPosition="top"
             transition={200}
             accessible={false}
-          />
-          {/* Fades the photo's straight left edge into the card gradient. */}
-          <LinearGradient
-            colors={[goalBlendColor[goal], colors.transparent]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.fade}
-            pointerEvents="none"
           />
         </View>
 
@@ -120,7 +127,7 @@ const styles = StyleSheet.create({
     flex: 1,
     marginLeft: spacing.md,
     // Keeps the copy clear of the figure, which is out of flow behind it.
-    marginRight: FIGURE_WIDTH - spacing.base,
+    marginRight: FIGURE_WIDTH + FIGURE_RIGHT_PADDING,
   },
   title: {
     fontSize: fontSize.xl,
@@ -137,26 +144,11 @@ const styles = StyleSheet.create({
   },
   figure: {
     position: 'absolute',
-    right: 0,
+    right: FIGURE_RIGHT_PADDING,
     top: 0,
     bottom: 0,
     width: FIGURE_WIDTH,
-    // Clips the taller photo to the card, revealing a head-through-torso band.
+    // Clips the portrait to the card's rounded corners.
     overflow: 'hidden',
-  },
-  photo: {
-    position: 'absolute',
-    left: 0,
-    // Rendered at natural aspect (so `fill` doesn't distort); `top` is set
-    // per-goal inline to frame the band.
-    width: FIGURE_WIDTH,
-    height: PHOTO_HEIGHT,
-  },
-  fade: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    width: FADE_WIDTH,
   },
 });
