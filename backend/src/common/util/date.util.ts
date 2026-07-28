@@ -232,8 +232,11 @@ export function zonedOffsetMs(instant: Date, timeZone: string): number {
  * accidental:
  *
  *  - **Ambiguous** times (the hour repeated when clocks go back) have two valid
- *    instants; the earlier is returned, so a reminder fires at the first moment the
- *    clock reads what the user asked for.
+ *    instants. Exactly one is returned — whichever the offset probe converges on,
+ *    which in practice is the post-transition one — so the reminder fires once, on
+ *    the requested date, at a moment the clock genuinely reads the requested time.
+ *    The two are an hour apart and both read the same on the user's clock, so the
+ *    choice between them is not observable.
  *  - **Skipped** times (02:30 on a spring-forward morning never happens) have none.
  *    The later candidate is returned, which sits just after the jump — the reminder
  *    shifts forward by the gap and still fires exactly once that day, rather than

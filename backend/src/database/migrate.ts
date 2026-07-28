@@ -23,7 +23,7 @@ async function runMigrations(): Promise<void> {
   // then there is nothing to apply and this is a successful no-op.
   const journal = resolve(process.cwd(), MIGRATIONS_FOLDER, 'meta', '_journal.json');
   if (!existsSync(journal)) {
-    // eslint-disable-next-line no-console
+     
     console.log('No migrations found — nothing to apply.');
     return;
   }
@@ -35,10 +35,10 @@ async function runMigrations(): Promise<void> {
   const db = drizzle(client);
 
   try {
-    // eslint-disable-next-line no-console
+     
     console.log('Running database migrations…');
     await migrate(db, { migrationsFolder: MIGRATIONS_FOLDER });
-    // eslint-disable-next-line no-console
+     
     console.log('Migrations applied successfully.');
   } finally {
     await client.end({ timeout: 5 });
@@ -46,7 +46,7 @@ async function runMigrations(): Promise<void> {
 }
 
 runMigrations().catch((error) => {
-  // eslint-disable-next-line no-console
+   
   console.error('Migration failed:', error);
   process.exit(1);
 });

@@ -1,4 +1,5 @@
 import { Body, Controller, HttpCode, HttpStatus, Post } from '@nestjs/common';
+import { AuthRateLimit } from '../common/throttler/throttle.decorators';
 import { AuthService, type AuthResult } from './auth.service';
 import { AccessToken } from './decorators/access-token.decorator';
 import { Public } from './decorators/public.decorator';
@@ -13,12 +14,18 @@ import { SignUpDto } from './dto/sign-up.dto';
  * Sign-up, login, refresh and password reset are public (no token required);
  * logout is protected by the global {@link SupabaseAuthGuard}. Social login
  * (Google/Apple) is intentionally out of scope for this phase.
+ *
+ * The credential routes carry a strict rate limit, keyed by address because a
+ * caller attacking them has no identity yet. Refresh is left on the ordinary
+ * allowance: a healthy session refreshes on a timer nobody sees, and throttling
+ * that would sign people out for using the app normally.
  */
 @Controller({ path: 'auth', version: '1' })
 export class AuthController {
   constructor(private readonly auth: AuthService) {}
 
   @Public()
+  @AuthRateLimit()
   @Post('signup')
   @HttpCode(HttpStatus.CREATED)
   signUp(@Body() dto: SignUpDto): Promise<AuthResult> {
@@ -26,6 +33,7 @@ export class AuthController {
   }
 
   @Public()
+  @AuthRateLimit()
   @Post('login')
   @HttpCode(HttpStatus.OK)
   login(@Body() dto: SignInDto): Promise<AuthResult> {
@@ -46,6 +54,7 @@ export class AuthController {
   }
 
   @Public()
+  @AuthRateLimit()
   @Post('password/reset')
   @HttpCode(HttpStatus.OK)
   async requestPasswordReset(

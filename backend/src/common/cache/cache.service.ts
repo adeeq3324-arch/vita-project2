@@ -1,6 +1,7 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { Redis } from 'ioredis';
 import { REDIS_CLIENT } from '../../redis/redis.constants';
+import { MetricsService } from '../observability/metrics.service';
 
 /** Batch size for `SCAN`, keeping prefix deletes off the Redis event loop. */
 const SCAN_COUNT = 250;
@@ -17,14 +18,30 @@ const SCAN_COUNT = 250;
 export class CacheService {
   private readonly logger = new Logger(CacheService.name);
 
-  constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
+  constructor(
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+    private readonly metrics: MetricsService,
+  ) {}
 
-  /** Reads and parses a cached value, or null on miss/failure. */
+  /**
+   * Reads and parses a cached value, or null on miss/failure.
+   *
+   * Hits, misses and failures are counted separately on purpose. A miss and an
+   * outage look identical to the caller — both fall through to the database —
+   * but they mean opposite things operationally: one is a cold cache doing its
+   * job, the other is Redis being down while the API quietly runs uncached.
+   */
   async get<T>(key: string): Promise<T | null> {
     try {
       const raw = await this.redis.get(key);
-      return raw === null ? null : (JSON.parse(raw) as T);
+      if (raw === null) {
+        this.metrics.recordCacheMiss();
+        return null;
+      }
+      this.metrics.recordCacheHit();
+      return JSON.parse(raw) as T;
     } catch (error) {
+      this.metrics.recordCacheError();
       this.logger.warn(`Cache read failed for "${key}": ${this.describe(error)}`);
       return null;
     }

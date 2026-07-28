@@ -22,6 +22,13 @@ export const CacheTtl = {
   food: 24 * 60 * 60,
   foodSearch: 10 * 60,
   /**
+   * Resolved barcode products. Shared reference data like the catalogue, and
+   * even more worth caching: a miss here is not a database round-trip but a
+   * model call, so a popular barcode that is not cached is billed for on every
+   * scan of it. The row itself only changes when a lookup is re-run.
+   */
+  product: 24 * 60 * 60,
+  /**
    * The Progress tab aggregates a month of diaries, metrics and workouts into one
    * payload — by far the most expensive read in the app. Short-lived because the
    * numbers move whenever anything is logged, and every write path that can move
@@ -58,6 +65,15 @@ export const CacheKeys = {
 
   /** Prefix covering every cached food read (catalogue entries + search pages). */
   foodsPrefix: (): string => `${ROOT}:foods:`,
+
+  /**
+   * A resolved product, keyed by the barcode that was scanned.
+   *
+   * Keyed by barcode rather than by row id because that is what a scan actually
+   * has in hand: the id is only known once the row has been found, which is the
+   * lookup this cache exists to avoid.
+   */
+  product: (barcode: string): string => `${ROOT}:products:${barcode}`,
 
   /**
    * Prefix covering every cached analytics read for **one user**.

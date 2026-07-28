@@ -11,6 +11,7 @@ import {
 import type { Request, Response } from 'express';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AiRateLimit } from '../common/throttler/throttle.decorators';
 import { CoachService } from './coach.service';
 import {
   listPersonalities,
@@ -81,6 +82,7 @@ export class CoachController {
    * delivered as an `error` event instead.
    */
   @Post('conversations/:id/messages')
+  @AiRateLimit(120)
   async sendMessage(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,

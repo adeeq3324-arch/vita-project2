@@ -1,0 +1,15 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    // `multer` is listed because it augments the global `Express` namespace with
+    // `Express.Multer.File`. Naming `types` explicitly otherwise excludes it,
+    // and the upload specs reference that type directly.
+    "types": ["node", "jest", "multer"],
+    "noEmit": true,
+    // The build config emits declarations-free JS with `incremental`; a test run
+    // compiles in-memory through ts-jest and must not fight over the same
+    // .tsbuildinfo file.
+    "incremental": false
+  },
+  "include": ["src/**/*.ts", "test/**/*.ts"]
+}

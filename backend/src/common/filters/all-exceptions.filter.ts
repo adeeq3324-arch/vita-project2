@@ -8,7 +8,9 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { PinoLogger } from 'nestjs-pino';
+import type { AuthenticatedUser } from '../../auth/auth.types';
 import { PROBLEM_CONTENT_TYPE, type ProblemDetails } from '../http/problem-details';
+import { ErrorTrackingService } from '../observability/error-tracking.service';
 
 interface NestExceptionBody {
   message?: string | string[];
@@ -24,7 +26,10 @@ interface NestExceptionBody {
  */
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
-  constructor(private readonly logger: PinoLogger) {
+  constructor(
+    private readonly logger: PinoLogger,
+    private readonly errorTracking: ErrorTrackingService,
+  ) {
     this.logger.setContext(AllExceptionsFilter.name);
   }
 
@@ -55,6 +60,18 @@ export class AllExceptionsFilter implements ExceptionFilter {
         { err: exception, method: request.method, path: problem.instance, requestId },
         'Unhandled server exception',
       );
+
+      // Only server faults are reported. A 404 or a rejected payload is the API
+      // working correctly, and forwarding those would bury real defects under
+      // routine client mistakes. Deliberately not awaited: the client's response
+      // must not wait on a third-party HTTP call, and `capture` never throws.
+      void this.errorTracking.capture(exception, {
+        requestId,
+        userId: (request as Request & { user?: AuthenticatedUser }).user?.id,
+        method: request.method,
+        path: problem.instance,
+        status,
+      });
     } else {
       this.logger.warn(
         { status, method: request.method, path: problem.instance, requestId },

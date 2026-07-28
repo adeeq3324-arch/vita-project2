@@ -27,10 +27,25 @@ async function bootstrap(): Promise<void> {
   app.use(compression());
   app.enableCors({ origin: true, credentials: true });
 
+  // How far to trust `X-Forwarded-For` when resolving the client address.
+  //
+  // This is load-bearing for rate limiting, and wrong in both directions: trust
+  // nothing behind a load balancer and every request appears to come from the
+  // balancer, collapsing all users into a single bucket; trust everything on a
+  // directly exposed service and any caller can spoof a fresh address per
+  // request and evade the shield entirely. It therefore comes from the
+  // environment, which is the only place that knows the topology.
+  app.set('trust proxy', config.get<string | number | boolean>('rateLimit.trustProxy', false));
+
   // Versioned API surface: feature routes live under /api/v1/*.
-  // The health probe stays at the root (/health), version-neutral.
+  // The health probe and the metrics scrape stay at the root, version-neutral:
+  // an orchestrator and a Prometheus are not API clients, and pinning either to
+  // a resource version would break them on the day v2 ships.
   app.setGlobalPrefix('api', {
-    exclude: [{ path: 'health', method: RequestMethod.GET }],
+    exclude: [
+      { path: 'health', method: RequestMethod.GET },
+      { path: 'metrics', method: RequestMethod.GET },
+    ],
   });
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
 

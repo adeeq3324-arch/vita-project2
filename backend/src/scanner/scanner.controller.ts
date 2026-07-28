@@ -11,6 +11,8 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AiRateLimit } from '../common/throttler/throttle.decorators';
+import { ScanImagePipe } from '../storage/scan-image.pipe';
 import { MAX_UPLOAD_BYTES } from '../storage/storage.service';
 import { ScanBarcodeDto } from './dto/scan-barcode.dto';
 import { ScannerService } from './scanner.service';
@@ -46,26 +48,29 @@ export class ScannerController {
 
   /** Identifies a food from a photograph and scores it for the caller. */
   @Post('food')
+  @AiRateLimit(30)
   @UseInterceptors(FileInterceptor('image', UPLOAD_OPTIONS))
   scanFood(
     @CurrentUser() user: AuthenticatedUser,
-    @UploadedFile() image: Express.Multer.File,
+    @UploadedFile(ScanImagePipe) image: Express.Multer.File,
   ): Promise<ScanOutcomeView> {
     return this.scanner.scanFood(user.id, image);
   }
 
   /** Judges freshness and quality from a photograph. */
   @Post('quality')
+  @AiRateLimit(30)
   @UseInterceptors(FileInterceptor('image', UPLOAD_OPTIONS))
   scanQuality(
     @CurrentUser() user: AuthenticatedUser,
-    @UploadedFile() image: Express.Multer.File,
+    @UploadedFile(ScanImagePipe) image: Express.Multer.File,
   ): Promise<ScanOutcomeView> {
     return this.scanner.scanQuality(user.id, image);
   }
 
   /** Resolves a packaged product and gives the caller a verdict on it. */
   @Post('barcode')
+  @AiRateLimit(60)
   scanBarcode(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: ScanBarcodeDto,

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AiContextModule } from '../ai-context/ai-context.module';
+import { ScanImagePipe } from '../storage/scan-image.pipe';
 import { StorageModule } from '../storage/storage.module';
 import { ScannerController } from './scanner.controller';
 import { ScannerProcessor } from './scanner.processor';
@@ -16,7 +17,9 @@ import { ScannerService } from './scanner.service';
 @Module({
   imports: [AiContextModule, StorageModule],
   controllers: [ScannerController],
-  providers: [ScannerService, ScannerProcessor],
+  // The upload pipe is registered explicitly rather than left to be constructed
+  // ad hoc, so it resolves through the container like every other provider.
+  providers: [ScannerService, ScannerProcessor, ScanImagePipe],
   exports: [ScannerService],
 })
 export class ScannerModule {}

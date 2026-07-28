@@ -89,6 +89,25 @@ services:
       AI_API_KEY: ${AI_API_KEY:-}
       AI_TIMEOUT_MS: ${AI_TIMEOUT_MS:-60000}
       AI_MAX_RETRIES: ${AI_MAX_RETRIES:-2}
+      # Push delivery. Off by default: reminders still fire and are recorded,
+      # they simply produce no device notification without credentials.
+      PUSH_ENABLED: ${PUSH_ENABLED:-false}
+      EXPO_ACCESS_TOKEN: ${EXPO_ACCESS_TOKEN:-}
+      # Rate limiting. The container publishes a port directly rather than
+      # sitting behind a proxy, so no forwarding header is trusted — honouring
+      # one here would let any caller spoof a fresh address per request and
+      # bypass the shield entirely.
+      RATE_LIMIT_ENABLED: ${RATE_LIMIT_ENABLED:-true}
+      TRUST_PROXY: ${TRUST_PROXY:-}
+      RATE_LIMIT_GLOBAL_LIMIT: ${RATE_LIMIT_GLOBAL_LIMIT:-600}
+      RATE_LIMIT_DEFAULT_LIMIT: ${RATE_LIMIT_DEFAULT_LIMIT:-120}
+      RATE_LIMIT_AI_LIMIT: ${RATE_LIMIT_AI_LIMIT:-60}
+      # Observability. Both channels are inert unless configured.
+      SENTRY_DSN: ${SENTRY_DSN:-}
+      SENTRY_ENVIRONMENT: ${SENTRY_ENVIRONMENT:-}
+      SENTRY_RELEASE: ${SENTRY_RELEASE:-}
+      METRICS_ENABLED: ${METRICS_ENABLED:-true}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
     ports:
       - '${PORT:-3000}:3000'
     depends_on:

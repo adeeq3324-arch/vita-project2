@@ -1,6 +1,7 @@
 import { Controller, Get, HttpStatus, Res, VERSION_NEUTRAL } from '@nestjs/common';
 import type { Response } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
+import { NoRateLimit } from '../common/throttler/throttle.decorators';
 import { HealthService, type HealthReport } from './health.service';
 
 /**
@@ -8,8 +9,13 @@ import { HealthService, type HealthReport } from './health.service';
  * reachable and 503 (Service Unavailable) when any component is down, with a
  * per-component breakdown. Version-neutral and unauthenticated (`@Public`) so
  * load balancers and orchestrators can probe it directly.
+ *
+ * Exempt from rate limiting: an orchestrator probes this on a fixed interval
+ * from a small number of addresses, and throttling it would take a healthy
+ * instance out of rotation for being monitored.
  */
 @Public()
+@NoRateLimit()
 @Controller({ path: 'health', version: VERSION_NEUTRAL })
 export class HealthController {
   constructor(private readonly health: HealthService) {}

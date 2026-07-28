@@ -34,6 +34,11 @@ import { AnalyticsModule } from './analytics/analytics.module';
 import { AchievementsModule } from './achievements/achievements.module';
 import { ProgressModule } from './progress/progress.module';
 import { RemindersModule } from './reminders/reminders.module';
+import {
+  ThrottlerCoreModule,
+  UserThrottlerModule,
+} from './common/throttler/throttler.module';
+import { ObservabilityModule } from './common/observability/observability.module';
 
 /**
  * Root application module. Wires the cross-cutting foundation:
@@ -56,6 +61,10 @@ import { RemindersModule } from './reminders/reminders.module';
  * Phase 4 adds progress & engagement: the training diary, the shared analytics
  * read layer, the Progress tab with its weekly/monthly snapshot history,
  * achievement tracking, and reminders delivered as push notifications.
+ *
+ * Phase 5 hardens all of the above for production: two-layer rate limiting,
+ * error tracking and metrics, and the subscriptions ledger. It adds no
+ * behaviour to the feature modules it protects.
  */
 @Module({
   imports: [
@@ -65,10 +74,18 @@ import { RemindersModule } from './reminders/reminders.module';
     RedisModule,
     CacheModule,
     QueueModule,
+    // Installs the pre-authentication IP shield. Imported ahead of AuthModule
+    // deliberately: global guards run in module-initialisation order, and this
+    // one has to meter a flood of invalid tokens *before* the auth guard spends
+    // a Supabase call verifying each one.
+    ThrottlerCoreModule,
     HealthModule,
     SupabaseModule,
     UsersModule,
     AuthModule,
+    // …and this one has to run after AuthModule, so `request.user` exists and
+    // limits are keyed by identity rather than by shared carrier address.
+    UserThrottlerModule,
     ProfilesModule,
     GoalsModule,
     HealthConditionsModule,
@@ -92,6 +109,7 @@ import { RemindersModule } from './reminders/reminders.module';
     AchievementsModule,
     ProgressModule,
     RemindersModule,
+    ObservabilityModule,
   ],
   providers: [
     {

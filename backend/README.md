@@ -4,14 +4,15 @@ Backend API for **VITAL AI**, a premium AI Fitness & Health platform.
 
 **Stack:** NestJS · Supabase (Postgres/Auth/Storage) · Drizzle ORM · Redis · BullMQ · Docker
 
-> **Phase 4 — Progress & Engagement.** Built on the Phase 0 foundation
-> (configuration, logging, database/Redis/queue wiring, error handling, health
-> check), the Phase 1 auth & onboarding domain, the Phase 2 nutrition core, and
-> the Phase 3 AI layer. This phase adds the **training diary**, a shared
-> analytics read layer, the **Progress tab** with its weekly/monthly snapshot
-> history, **achievement** tracking with unlock logic, and **reminders**
-> delivered as push notifications. Rate limiting, full RLS hardening and the test
-> suite come in the final phase.
+> **Phase 5 — Production Hardening.** The feature set is complete: the Phase 0
+> foundation (configuration, logging, database/Redis/queue wiring, error
+> handling, health check), Phase 1 auth & onboarding, Phase 2 nutrition core,
+> Phase 3 AI layer, and Phase 4 progress & engagement. This phase adds no
+> features and changes no response shape. It adds **two-layer rate limiting**
+> backed by Redis, a completed **caching pass** with the invalidation the
+> analytics views were missing, an audited and **enforced RLS** surface with a
+> CI gate, **error tracking and Prometheus metrics**, and the **unit and
+> end-to-end test suites**.
 
 ## Architecture
 
@@ -375,6 +376,109 @@ equation scaled by intensity (`src/workout-logs/workout.presentation.ts`) and
 stored, not derived on read — a later weight change must not rewrite training
 history. A figure sent by a wearable always wins.
 
+## Production hardening (Phase 5)
+
+### Rate limiting
+
+Two layers, and the split between them is the point.
+
+| Layer | Where it runs | Keyed by | Scope | Default |
+| ----- | ------------- | -------- | ----- | ------- |
+| `global` | **Before** authentication | IP address | The whole API, one bucket | 600 / min |
+| `default` | **After** authentication | User id, else IP | Per route | 120 / min |
+| `ai` | After authentication | User id, else IP | Shared across every model-backed route | 60 / hour |
+
+The edge guard exists for the case the per-user limiter structurally cannot
+cover: it runs *after* the auth guard, so a request bearing an invalid token is
+rejected as a 401 before any limit is consulted — meaning a flood of junk tokens
+would otherwise reach Supabase's auth API unmetered. The edge guard meters that
+traffic while it is still anonymous. Its limit is deliberately generous because
+mobile clients share carrier NAT addresses; fairness is the inner guard's job.
+
+The `ai` budget is deliberately **not** route-scoped: a model call costs money
+wherever it is made, so scans, coach turns and plan generation draw on one
+allowance. Route-scoping it would let a caller spend the same budget three times
+over by alternating endpoints.
+
+Counting happens in Redis via an atomic Lua script, so a limit means the same
+thing however many instances are running. If Redis is unreachable the limiter
+**fails open** and logs — a cache outage must not become an API outage.
+
+> **`TRUST_PROXY` is load-bearing and wrong in both directions.** Behind a load
+> balancer, leaving it unset collapses every user into the balancer's address as
+> one bucket. On a directly exposed service, setting it lets any caller spoof
+> `X-Forwarded-For` and evade the shield entirely. It must match the topology.
+
+Refusals are RFC 7807 documents like every other error, with `Retry-After` set.
+
+### Caching
+
+| Cached read | TTL | Invalidated by |
+| ----------- | --- | -------------- |
+| Nutrition targets | 15 min | Profile, goal and onboarding writes |
+| Food catalogue entry / search page | 24 h / 10 min | Seeder only — shared reference data |
+| Barcode product lookup | 24 h | Re-resolution only |
+| Progress overview / snapshots / achievements | 5–10 min | Any write that can move a chart |
+
+A product lookup is now cached in Redis ahead of the database, because a miss
+there is not a query but a **model call** — a popular barcode would otherwise be
+billed for on every scan.
+
+The analytics prefix (`vital:v1:analytics:<userId>:`) is dropped wholesale rather
+than by named key, so a cached view added later is invalidated correctly without
+every producer learning about it. Phase 5 added the invalidation that meal-log
+and daily-metric writes were missing: without it a user who logged a meal watched
+their own Progress tab disagree with their own diary until the TTL lapsed.
+
+### Row Level Security
+
+Every table has RLS enabled with an owner-scoped policy (see the section below).
+Phase 5 audited that surface and closed two gaps:
+
+- Revoked `EXECUTE` on Supabase's `public.rls_auto_enable()` from `anon` and
+  `authenticated`. It is a `SECURITY DEFINER` function that PostgREST exposes at
+  `/rest/v1/rpc/`, and Postgres grants `EXECUTE` to `PUBLIC` by default. The
+  event trigger still fires — a trigger runs as its owner regardless.
+- Added restrictive per-command policies to `foods` and `products` making the
+  client write ban structural rather than incidental, so a future permissive
+  `FOR ALL` policy still cannot grant an INSERT, UPDATE or DELETE.
+
+`npm run db:verify-rls` audits a live database and exits non-zero if any table
+lacks RLS, lacks a policy, carries `user_id` without an `auth.uid()` policy, or
+exposes rows through a permissive `USING (true)`. **CI runs it on every push and
+again during release, before any new container serves traffic.**
+
+### Observability
+
+`GET /metrics` exposes Prometheus metrics — HTTP counts and latency by route
+*template*, cache hit/miss/error, rate-limit rejections by budget, background job
+outcomes, plus process and event-loop metrics. It is version-neutral and outside
+the `/api` prefix, and requires `METRICS_TOKEN` as a bearer token when set.
+
+> Metrics disclose route names, traffic volumes and error rates. Any
+> internet-reachable deployment **must** set `METRICS_TOKEN`.
+
+Error tracking speaks the Sentry envelope API over plain `fetch`, so any
+Sentry-compatible ingest works and no vendor SDK is pulled in. Only 5xx faults
+are reported — a 404 or a rejected payload is the API working correctly.
+Reporting is fire-and-forget and never throws: failing to *report* an error must
+not turn a handled 500 into a crash. Reports carry the correlation id, route and
+user **id** — never an email or any profile field.
+
+### Tests
+
+| Command | Covers |
+| ------- | ------ |
+| `npm test` | Unit suites: nutrition modelling, health score, time-zone/DST handling, reminder scheduling, cache keys, throttler storage, error tracking, upload validation |
+| `npm run test:e2e` | The cross-cutting stack over real HTTP: both rate-limit layers, validation, the problem-details envelope, metrics |
+| `npm run test:all` | Both |
+
+The e2e suite runs the production guards, pipes and filter against an in-memory
+Redis double. The rate limiter's Lua script is additionally executed against a
+**real Redis** by `test/redis-throttle.e2e-spec.ts` — including a concurrency
+test proving atomicity — which is skipped locally when none is reachable and
+always runs in CI.
+
 ## Database & migrations (Drizzle)
 
 - Define tables in `src/database/schema/` and re-export them from `schema/index.ts`.
@@ -437,3 +541,9 @@ Push notifications are off unless switched on, and need nothing else locally:
 | `npm run format`     | Format with Prettier                 |
 | `npm run db:migrate` | Apply pending migrations             |
 | `npm run db:seed`    | Load the starter food catalogue      |
+| `npm run db:verify-rls` | Audit Row Level Security on a live database |
+| `npm run typecheck`  | Typecheck without emitting           |
+| `npm test`           | Unit tests                           |
+| `npm run test:cov`   | Unit tests with coverage             |
+| `npm run test:e2e`   | End-to-end tests                     |
+| `npm run test:all`   | Unit then end-to-end                 |

@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { AiRateLimit } from '../common/throttler/throttle.decorators';
 import type { SupplementPlanStatusView, SupplementPlanView } from './supplement-plan.view';
 import { SupplementPlansService } from './supplement-plans.service';
 
@@ -32,6 +33,7 @@ export class SupplementPlansController {
    */
   @Post('generate')
   @HttpCode(HttpStatus.ACCEPTED)
+  @AiRateLimit(12)
   generate(@CurrentUser() user: AuthenticatedUser): Promise<SupplementPlanStatusView> {
     return this.supplementPlans.generate(user.id);
   }

@@ -8,6 +8,8 @@ import { AiGenerationError, AiService } from '../ai/ai.interface';
 import { parseStructured } from '../ai/structured';
 import { UserContextService } from '../ai-context/user-context.service';
 import { AiJobsService } from '../ai-jobs/ai-jobs.service';
+import { CacheKeys, CacheTtl } from '../common/cache/cache.keys';
+import { CacheService } from '../common/cache/cache.service';
 import { DRIZZLE, type Database } from '../database/database.constants';
 import {
   products,
@@ -115,6 +117,7 @@ export class ScannerService {
     private readonly storage: StorageService,
     private readonly userContext: UserContextService,
     private readonly aiJobs: AiJobsService,
+    private readonly cache: CacheService,
   ) {}
 
   // ── entry points ──────────────────────────────────────────────────────────
@@ -370,10 +373,20 @@ export class ScannerService {
    * product would serve that invention to every future user who scans it.
    */
   private async resolveProduct(barcode: string, signal?: AbortSignal): Promise<Product> {
+    // Two tiers, cheapest first. Redis spares the database round-trip for the
+    // barcodes people actually scan (a small, hot set — the same energy drink
+    // over and over), and the database spares the model call for everything
+    // else. Only a genuinely new barcode reaches the model.
+    const memoised = await this.readCachedProduct(barcode);
+    if (memoised) {
+      return memoised;
+    }
+
     const cached = await this.db.query.products.findFirst({
       where: eq(products.barcode, barcode),
     });
     if (cached) {
+      await this.writeCachedProduct(cached);
       return cached;
     }
 
@@ -427,7 +440,34 @@ export class ScannerService {
       })
       .returning();
 
+    await this.writeCachedProduct(saved);
     return saved;
+  }
+
+  /**
+   * A cached product, with its timestamps restored.
+   *
+   * JSON has no date type, so a `Product` that has been through the cache comes
+   * back with `createdAt`/`updatedAt` as strings while still claiming to be
+   * `Date`s. Nothing on the read path touches them today, which is exactly why
+   * it is worth reviving them here rather than leaving a value that lies about
+   * its own type for the first caller who does.
+   */
+  private async readCachedProduct(barcode: string): Promise<Product | null> {
+    const cached = await this.cache.get<SerialisedProduct>(CacheKeys.product(barcode));
+    if (!cached) {
+      return null;
+    }
+
+    return {
+      ...cached,
+      createdAt: new Date(cached.createdAt),
+      updatedAt: new Date(cached.updatedAt),
+    };
+  }
+
+  private async writeCachedProduct(product: Product): Promise<void> {
+    await this.cache.set(CacheKeys.product(product.barcode), product, CacheTtl.product);
   }
 
   /** A scan belonging to the caller, or a 404 — never another user's row. */
@@ -462,3 +502,9 @@ export class ScannerService {
 
 /** Whether an inline attempt produced a result or handed the work onward. */
 type AttemptOutcome = { deferred: false; resultId: string } | { deferred: true };
+
+/** A `Product` as it survives a JSON round-trip: timestamps become strings. */
+type SerialisedProduct = Omit<Product, 'createdAt' | 'updatedAt'> & {
+  createdAt: string;
+  updatedAt: string;
+};

@@ -1,6 +1,5 @@
 import { randomUUID } from 'node:crypto';
 import {
-  BadRequestException,
   Inject,
   Injectable,
   InternalServerErrorException,
@@ -9,20 +8,9 @@ import {
 import { ConfigService } from '@nestjs/config';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { SUPABASE_ADMIN_CLIENT } from '../supabase/supabase.constants';
+import { assertValidScanImage, EXTENSIONS } from './scan-image.validation';
 
-/** Image formats a phone camera or gallery realistically produces. */
-const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic']);
-
-/** Extension used when a MIME type is not one we have a mapping for. */
-const EXTENSIONS: Record<string, string> = {
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'image/heic': 'heic',
-};
-
-/** Largest upload accepted, bytes. Comfortably above a full-resolution photo. */
-export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+export { MAX_UPLOAD_BYTES } from './scan-image.validation';
 
 /** How long a signed read URL stays valid, seconds. */
 const SIGNED_URL_TTL = 60 * 60;
@@ -59,7 +47,9 @@ export class StorageService {
    * another.
    */
   async uploadScanImage(userId: string, file: Express.Multer.File): Promise<string> {
-    this.validate(file);
+    // Re-checked here even though the controller's pipe has already run: this
+    // method is also reached from the queue worker, where no pipe exists.
+    assertValidScanImage(file);
 
     const extension = EXTENSIONS[file.mimetype] ?? 'jpg';
     const path = `${userId}/${randomUUID()}.${extension}`;
@@ -111,20 +101,6 @@ export class StorageService {
     const { error } = await this.supabase.storage.from(this.bucket).remove([path]);
     if (error) {
       this.logger.warn(`Could not remove orphaned scan image "${path}": ${error.message}`);
-    }
-  }
-
-  private validate(file: Express.Multer.File | undefined): asserts file is Express.Multer.File {
-    if (!file || file.size === 0) {
-      throw new BadRequestException('An image file is required.');
-    }
-    if (!ALLOWED_MIME_TYPES.has(file.mimetype)) {
-      throw new BadRequestException(
-        'Unsupported image format. Send a JPEG, PNG, WebP or HEIC photo.',
-      );
-    }
-    if (file.size > MAX_UPLOAD_BYTES) {
-      throw new BadRequestException('That image is too large. Keep it under 10 MB.');
     }
   }
 }

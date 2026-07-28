@@ -1,0 +1,256 @@
+name: Backend CI
+
+# Runs on every change that can affect the backend. Path-filtered so a
+# frontend-only commit does not spend several minutes proving the API still
+# compiles.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  # Available manually, for re-running against a flaky external dependency.
+  workflow_dispatch:
+
+# A new push supersedes the run already in flight for the same ref. Queued work
+# on an out-of-date commit tells nobody anything.
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: backend
+
+env:
+  NODE_VERSION: '22'
+
+jobs:
+  # ── static analysis ────────────────────────────────────────────────────────
+  # Split from the test job so a formatting mistake reports in under a minute
+  # rather than behind a database and a full suite.
+  static:
+    name: Lint & typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      # `npm ci` rather than `npm install`: it installs exactly the lockfile and
+      # fails if the two have drifted, which is the point of committing one.
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Lint
+        run: npx eslint "{src,test}/**/*.ts" --max-warnings 0
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      # The test tree has its own tsconfig; a spec that no longer compiles must
+      # fail here rather than at the moment somebody tries to run the suite.
+      - name: Typecheck tests
+        run: npx tsc --noEmit -p tsconfig.spec.json
+
+  # ── unit tests ─────────────────────────────────────────────────────────────
+  unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run unit tests
+        run: npm run test:cov
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: backend/coverage
+          retention-days: 7
+
+  # ── end-to-end tests ───────────────────────────────────────────────────────
+  # Runs with a real Redis, which is what makes the rate-limiter's Lua script
+  # actually execute rather than being stood in for by its in-memory port.
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Run end-to-end tests
+        run: npm run test:e2e
+        env:
+          # `CI=true` makes the Redis-backed suite fail rather than skip if the
+          # service is unreachable — a silently skipped test is worse than none,
+          # because it reports green while covering nothing.
+          CI: 'true'
+          REDIS_HOST: localhost
+          REDIS_PORT: '6379'
+
+  # ── database migrations & RLS audit ────────────────────────────────────────
+  # The safety net for the rule that matters most: no table reaches production
+  # without Row Level Security. Runs against a real Postgres with every
+  # migration applied, so a new table that forgot RLS fails the build.
+  database:
+    name: Migrations & RLS audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: vital
+          POSTGRES_PASSWORD: vital
+          POSTGRES_DB: vital_ai_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://vital:vital@localhost:5432/vital_ai_ci
+      DATABASE_SSL: 'false'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Apply migrations
+        run: npm run db:migrate
+
+      # Idempotence is a property the deploy relies on: the release step runs
+      # migrations on every rollout, including ones with nothing to apply.
+      - name: Re-apply migrations (must be a no-op)
+        run: npm run db:migrate
+
+      - name: Audit Row Level Security
+        run: npm run db:verify-rls
+
+      - name: Seed reference data
+        run: npm run db:seed
+
+  # ── production image ───────────────────────────────────────────────────────
+  # Proves the runtime image builds and starts. A green test suite says nothing
+  # about whether the thing that actually ships can boot.
+  image:
+    name: Docker build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [static]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build runtime image
+        uses: docker/build-push-action@v6
+        with:
+          context: backend
+          target: runtime
+          push: false
+          load: true
+          tags: vital-ai-api:ci
+          build-args: |
+            VERSION=ci-${{ github.sha }}
+            REVISION=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Boot the image far enough to prove it is not broken at the most basic
+      # level. Configuration is deliberately absent, so the expectation is a
+      # clean fail-fast on missing environment — not a successful start.
+      - name: Verify the image refuses to boot unconfigured
+        run: |
+          set +e
+          output=$(docker run --rm --name vital-ci vital-ai-api:ci 2>&1)
+          status=$?
+          set -e
+
+          echo "$output"
+
+          if [ "$status" -eq 0 ]; then
+            echo "::error::The API started with no configuration; env validation is not being enforced."
+            exit 1
+          fi
+
+          if ! echo "$output" | grep -qi "DATABASE_URL"; then
+            echo "::error::Expected a validation error naming DATABASE_URL."
+            exit 1
+          fi
+
+          echo "Image fails fast on missing configuration, as intended."
+
+  # A single required check for branch protection, so the rule does not have to
+  # be edited every time a job is added or renamed.
+  ci:
+    name: Backend CI
+    runs-on: ubuntu-latest
+    needs: [static, unit, e2e, database, image]
+    if: always()
+    steps:
+      # Each result is checked individually. Matching against the joined string
+      # would not work: a line reading "success success failure" still contains
+      # "success", so any single-line grep reports it as passing.
+      - name: Verify every job succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "Job results: $RESULTS"
+          for result in $RESULTS; do
+            if [ "$result" != "success" ]; then
+              echo "::error::At least one backend CI job did not succeed ($RESULTS)."
+              exit 1
+            fi
+          done
+          echo "All backend CI jobs succeeded."

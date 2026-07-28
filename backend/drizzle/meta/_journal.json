@@ -64,6 +64,13 @@
       "when": 1785223179271,
       "tag": "0008_enable_rls_progress",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785254400000,
+      "tag": "0009_rls_hardening",
+      "breakpoints": true
     }
   ]
 }

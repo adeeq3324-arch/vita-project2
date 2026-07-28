@@ -1,4 +1,5 @@
 import { Controller, Get, Param, ParseUUIDPipe, Query } from '@nestjs/common';
+import { SearchRateLimit } from '../common/throttler/throttle.decorators';
 import { SearchFoodsDto } from './dto/search-foods.dto';
 import type { FoodSearchView, FoodView } from './food.view';
 import { FoodsService } from './foods.service';
@@ -14,8 +15,15 @@ import { FoodsService } from './foods.service';
 export class FoodsController {
   constructor(private readonly foods: FoodsService) {}
 
-  /** Backs the "Add Meal" search bar. */
+  /**
+   * Backs the "Add Meal" search bar.
+   *
+   * Raised above the default allowance because the search box fires as the user
+   * types: a single deliberate search is several requests, and the default
+   * would throttle ordinary typing.
+   */
   @Get('search')
+  @SearchRateLimit()
   search(@Query() dto: SearchFoodsDto): Promise<FoodSearchView> {
     return this.foods.search(dto);
   }

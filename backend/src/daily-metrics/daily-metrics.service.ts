@@ -7,6 +7,8 @@ import {
   resolveTimeZone,
   todayIn,
 } from '../common/util/date.util';
+import { CacheKeys } from '../common/cache/cache.keys';
+import { CacheService } from '../common/cache/cache.service';
 import { DRIZZLE, type Database } from '../database/database.constants';
 import { dailyMetrics, type DailyMetric, type Profile } from '../database/schema';
 import type { DailyIntake } from '../meal-logs/meal-logs.service';
@@ -54,6 +56,7 @@ export class DailyMetricsService {
     private readonly profiles: ProfilesService,
     private readonly mealLogs: MealLogsService,
     private readonly targets: NutritionTargetsService,
+    private readonly cache: CacheService,
   ) {}
 
   async getDay(userId: string, date?: string): Promise<DailyMetricView> {
@@ -126,6 +129,8 @@ export class DailyMetricsService {
       })
       .returning();
 
+    await this.invalidateAnalytics(userId);
+
     const intake = await this.mealLogs.intakeForDate(userId, day);
     return this.present(userId, day, row, intake, context);
   }
@@ -151,8 +156,23 @@ export class DailyMetricsService {
       })
       .returning();
 
+    await this.invalidateAnalytics(userId);
+
     const intake = await this.mealLogs.intakeForDate(userId, day);
     return this.present(userId, day, row, intake, context);
+  }
+
+  /**
+   * Drops the caller's cached analytics after a metrics write.
+   *
+   * Weight, water, steps and workout minutes are all inputs to the Progress tab
+   * and the achievement standing, both of which are cached for minutes. Without
+   * this, a weigh-in does not show up on the progress chart until the TTL
+   * expires — the user sees the number they just entered contradicted by their
+   * own graph.
+   */
+  private async invalidateAnalytics(userId: string): Promise<void> {
+    await this.cache.delByPrefix(CacheKeys.analyticsPrefix(userId));
   }
 
   /**

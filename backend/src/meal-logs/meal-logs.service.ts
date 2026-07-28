@@ -7,6 +7,8 @@ import {
   toLocalDate,
   todayIn,
 } from '../common/util/date.util';
+import { CacheKeys } from '../common/cache/cache.keys';
+import { CacheService } from '../common/cache/cache.service';
 import { DRIZZLE, type Database } from '../database/database.constants';
 import { mealLogs, type MealLog, type NewMealLog } from '../database/schema';
 import { FoodsService } from '../foods/foods.service';
@@ -60,7 +62,23 @@ export class MealLogsService {
     @Inject(DRIZZLE) private readonly db: Database,
     private readonly foods: FoodsService,
     private readonly profiles: ProfilesService,
+    private readonly cache: CacheService,
   ) {}
+
+  /**
+   * Drops the caller's cached analytics after a diary write.
+   *
+   * The Progress tab and the achievement standing are both derived from these
+   * entries, and both are cached for minutes at a time. Without this a user who
+   * logs a meal watches their own progress screen disagree with their own diary
+   * until the TTL runs out — which reads as lost data, not as a stale cache.
+   *
+   * One prefix delete rather than named keys, so a cached view added later is
+   * invalidated correctly without this method learning about it.
+   */
+  private async invalidateAnalytics(userId: string): Promise<void> {
+    await this.cache.delByPrefix(CacheKeys.analyticsPrefix(userId));
+  }
 
   async create(userId: string, dto: CreateMealLogDto): Promise<MealLogView> {
     const timeZone = await this.profiles.getTimeZone(userId);
@@ -83,6 +101,8 @@ export class MealLogsService {
     };
 
     const [created] = await this.db.insert(mealLogs).values(values).returning();
+    await this.invalidateAnalytics(userId);
+
     return toMealLogView(created, timeZone, todayIn(timeZone));
   }
 
@@ -176,6 +196,8 @@ export class MealLogsService {
       .where(and(eq(mealLogs.id, id), eq(mealLogs.userId, userId)))
       .returning();
 
+    await this.invalidateAnalytics(userId);
+
     return toMealLogView(updated, timeZone, todayIn(timeZone));
   }
 
@@ -188,6 +210,8 @@ export class MealLogsService {
     if (deleted.length === 0) {
       throw new NotFoundException(`No meal log found with id "${id}".`);
     }
+
+    await this.invalidateAnalytics(userId);
   }
 
   /**

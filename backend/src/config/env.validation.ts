@@ -51,6 +51,48 @@ export const validationSchema = Joi.object({
   AI_TIMEOUT_MS: Joi.number().min(1000).max(600_000).default(60_000),
   AI_MAX_RETRIES: Joi.number().min(0).max(5).default(2),
 
+  // ----- Rate limiting (Phase 5) -----
+  // Enabled unless explicitly switched off, so an environment that never sets
+  // these variables is still protected. Every budget is tunable per environment
+  // because the correct number depends on the traffic, not on the code.
+  RATE_LIMIT_ENABLED: Joi.boolean()
+    .truthy('true')
+    .truthy('1')
+    .falsy('false')
+    .falsy('0')
+    .default(true),
+  // Where the client address is read from. Must match the deployment topology:
+  // `false` for a directly exposed service, a hop count or CIDR behind a proxy.
+  TRUST_PROXY: Joi.string().allow('').optional(),
+
+  RATE_LIMIT_GLOBAL_LIMIT: Joi.number().min(1).default(600),
+  RATE_LIMIT_GLOBAL_TTL_SECONDS: Joi.number().min(1).default(60),
+  RATE_LIMIT_GLOBAL_BLOCK_SECONDS: Joi.number().min(1).default(60),
+
+  RATE_LIMIT_DEFAULT_LIMIT: Joi.number().min(1).default(120),
+  RATE_LIMIT_DEFAULT_TTL_SECONDS: Joi.number().min(1).default(60),
+  RATE_LIMIT_DEFAULT_BLOCK_SECONDS: Joi.number().min(1).default(60),
+
+  RATE_LIMIT_AI_LIMIT: Joi.number().min(1).default(60),
+  RATE_LIMIT_AI_TTL_SECONDS: Joi.number().min(1).default(3600),
+  RATE_LIMIT_AI_BLOCK_SECONDS: Joi.number().min(1).default(300),
+
+  // ----- Observability (Phase 5) -----
+  // Both channels are optional: absent a DSN nothing is reported, and metrics
+  // can be switched off for an environment that has nothing scraping them.
+  SENTRY_DSN: Joi.string().uri().allow('').optional(),
+  SENTRY_ENVIRONMENT: Joi.string().allow('').optional(),
+  SENTRY_RELEASE: Joi.string().allow('').optional(),
+  SENTRY_SAMPLE_RATE: Joi.number().min(0).max(1).default(1),
+  SENTRY_TIMEOUT_MS: Joi.number().min(500).max(30_000).default(5_000),
+  METRICS_ENABLED: Joi.boolean()
+    .truthy('true')
+    .truthy('1')
+    .falsy('false')
+    .falsy('0')
+    .default(true),
+  METRICS_TOKEN: Joi.string().allow('').optional(),
+
   // ----- Push notifications (Phase 4) -----
   // Off by default: reminders schedule and fire regardless, they simply do not
   // produce a device notification until this is switched on. An access token is

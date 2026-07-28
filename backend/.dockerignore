@@ -12,3 +12,11 @@ docker-compose.yml
 .vscode
 .idea
 coverage
+# Tests and their configuration never ship in a runtime image: they are not
+# executed there, and shipping them enlarges the image and its attack surface
+# for no benefit. CI runs them from the source tree, before the image is built.
+test
+**/*.spec.ts
+jest.config.js
+tsconfig.spec.json
+.github
