@@ -1,63 +1,129 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, Text } from 'react-native';
 
-import { DetailHeader } from '@/components/layout/DetailHeader';
 import { Screen } from '@/components/layout/Screen';
-import { Card } from '@/components/ui/Card';
-import { useOnboarding } from '@/context/OnboardingContext';
+import { EmptyState, LoadingState } from '@/components/ui/StateView';
 import { usePlan } from '@/context/PlanContext';
-import { supplementSchedule } from '@/services/ai';
-import { colors, radius, spacing, typography } from '@/theme';
+import { colors, spacing, typography } from '@/theme';
 import type { MainStackParamList } from '@/navigation/types';
 
 import { GenerateGate } from './planning/GenerateGate';
-import { SupplementTimeline } from './planning/SupplementTimeline';
+import { PlanBanner } from './planning/PlanBanner';
+import { PlanHeader } from './planning/PlanHeader';
+import { SupplementCard } from './planning/SupplementCard';
+import { TierFilter, type TierFilterValue } from './planning/TierFilter';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'SupplementPlan'>;
 
-export function SupplementPlanScreen({ navigation }: Props) {
-  const { data } = useOnboarding();
-  const { status, generate } = usePlan();
+const SUPPLEMENT_TINT = {
+  color: colors.plan.supplement,
+  surface: colors.plan.supplementSurface,
+  dark: colors.plan.supplementDark,
+};
 
-  if (status.supplement !== 'ready') {
+export function SupplementPlanScreen({ navigation }: Props) {
+  const { supplement, hydrating, generate, refresh } = usePlan();
+  const [tier, setTier] = useState<TierFilterValue>('all');
+  const [refreshing, setRefreshing] = useState(false);
+
+  const plan = supplement.data;
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refresh('supplement');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  if (hydrating) {
     return (
       <Screen edges={{ top: true, bottom: false }}>
-        <DetailHeader title="Supplement Plan" />
+        <PlanHeader title="Supplements Plan" subtitle="This month" />
+        <LoadingState label="Loading your stack…" />
+      </Screen>
+    );
+  }
+
+  if (!plan) {
+    return (
+      <Screen edges={{ top: true, bottom: false }}>
+        <PlanHeader title="Supplements Plan" subtitle="This month" />
         <GenerateGate
           icon="pill"
-          accent="violet"
+          tint={SUPPLEMENT_TINT}
           title="Your AI Supplement Plan"
-          description="Generate a monthly supplement stack matched to your goal and health profile."
-          points={['A monthly supply', 'Timed daily routine', 'Tailored to your conditions']}
-          loading={status.supplement === 'generating'}
-          onGenerate={() => generate('supplement')}
+          description="A short, well-justified stack for the month ahead, matched to your goal and checked against the conditions on your health profile."
+          points={[
+            'Only what your goal actually calls for',
+            'When to take each one, and for how long',
+            'The cautions that come with it',
+          ]}
+          loading={supplement.status === 'generating'}
+          error={supplement.error}
+          onGenerate={() => void generate('supplement')}
         />
       </Screen>
     );
   }
 
-  const supplements = supplementSchedule(data);
+  const items = tier === 'all' ? plan.items : plan.items.filter((item) => item.tier === tier);
 
   return (
     <Screen edges={{ top: true, bottom: false }}>
-      <DetailHeader title="Monthly Supplement Plan" />
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        <View style={styles.banner}>
-          <MaterialCommunityIcons name="calendar-month" size={18} color={colors.primary} />
-          <Text style={styles.bannerText}>One month's supply · {supplements.length} supplements · refill monthly</Text>
-        </View>
+      <PlanHeader
+        title="Supplements Plan"
+        subtitle={plan.monthLabel}
+        regenerating={supplement.status === 'generating'}
+        onRegenerate={() => void generate('supplement')}
+      />
 
-        <Text style={styles.sectionTitle}>Daily Schedule</Text>
-        <Card>
-          <SupplementTimeline
-            supplements={supplements}
-            onSelect={(id) => navigation.navigate('SupplementDetail', { id })}
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void onRefresh()}
+            tintColor={colors.plan.supplement}
           />
-        </Card>
-        <View style={styles.note}>
-          <Text style={styles.noteText}>Stay consistent and drink plenty of water.</Text>
-        </View>
+        }
+      >
+        <PlanBanner
+          title="Your supplement plan is ready"
+          subtitle="Personalized stack to support your goals"
+          tint={colors.plan.supplement}
+        />
+
+        <TierFilter value={tier} onChange={setTier} counts={plan.counts} />
+
+        {items.length === 0 ? (
+          <EmptyState
+            icon="inbox"
+            title="Nothing in this group"
+            message="Your plan has no supplements in this category."
+          />
+        ) : (
+          items.map((item) => (
+            <SupplementCard
+              key={item.id}
+              supplement={item}
+              onPress={() =>
+                navigation.navigate('SupplementDetail', {
+                  supplementPlanId: plan.supplementPlanId,
+                  supplementId: item.id,
+                })
+              }
+            />
+          ))
+        )}
+
+        <Text style={styles.note}>
+          General wellness guidance, not medical advice. Check with a healthcare provider before
+          starting anything new — especially if you take medication.
+        </Text>
       </ScrollView>
     </Screen>
   );
@@ -66,32 +132,15 @@ export function SupplementPlanScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   content: {
     gap: spacing.md,
-    paddingBottom: spacing['3xl'],
-  },
-  banner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.primarySurface,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.md,
-  },
-  bannerText: {
-    ...typography.caption,
-    color: colors.primaryDark,
-    flex: 1,
-  },
-  sectionTitle: {
-    ...typography.h4,
-    color: colors.text.primary,
+    paddingTop: spacing.xs,
+    paddingBottom: spacing['4xl'],
   },
   note: {
-    alignItems: 'center',
-    paddingVertical: spacing.md,
-  },
-  noteText: {
-    ...typography.caption,
+    ...typography.micro,
     color: colors.text.tertiary,
+    lineHeight: 16,
+    textAlign: 'center',
+    paddingHorizontal: spacing.md,
+    paddingTop: spacing.sm,
   },
 });

@@ -55,11 +55,35 @@ export type MainStackParamList = {
   Reminders: undefined;
   Settings: undefined;
 
-  /** Planning detail screens. */
+  /**
+   * Planning detail screens.
+   *
+   * The detail routes carry both the plan and the item, because a meal or a
+   * supplement only exists inside a generated plan — the pair is what the API
+   * addresses them by, and it is what lets these screens be opened directly
+   * without the plan already being in memory.
+   */
   MealPlan: undefined;
-  MealDetail: { day: number; type: MealType };
+  MealDetail: { mealPlanId: string; mealId: string };
+  /**
+   * The method behind one planned meal.
+   *
+   * The dish's name, photograph and sitting ride along as optional params so the
+   * hero is painted the instant the screen opens rather than after the recipe
+   * arrives — the first request for a dish generates it, and a second of grey
+   * where the photograph belongs is the difference between a screen that feels
+   * instant and one that feels like it is thinking. The response carries all
+   * three as well, so a deep link that has none of them still renders whole.
+   */
+  MealRecipe: {
+    mealPlanId: string;
+    mealId: string;
+    mealName?: string;
+    imageUrl?: string | null;
+    mealType?: MealType;
+  };
   SupplementPlan: undefined;
-  SupplementDetail: { id: string };
+  SupplementDetail: { supplementPlanId: string; supplementId: string };
 
   /** FAB quick-action flows. */
   FoodScanner: undefined;
@@ -83,6 +107,10 @@ export type RootStackParamList = {
  */
 declare global {
   namespace ReactNavigation {
+    // Declaration merging is the only way to extend this interface, and merging
+    // requires the `interface` form — an alias would not register anything. The
+    // body is empty because the whole point is to adopt `RootStackParamList`.
+    // eslint-disable-next-line @typescript-eslint/no-empty-object-type
     interface RootParamList extends RootStackParamList {}
   }
 }

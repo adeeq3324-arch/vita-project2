@@ -4,10 +4,10 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { colors, radius, spacing, typography } from '@/theme';
 
-import { tips } from './progressData';
+import type { Tip } from './progressTips';
 
-/** Tips view of the Progress tab: personalised coaching cards. */
-export function TipsList() {
+/** Tips view of the Progress tab: coaching cards derived from the period's data. */
+export function TipsList({ tips }: { tips: Tip[] }) {
   return (
     <View style={styles.list}>
       {tips.map((tip) => (

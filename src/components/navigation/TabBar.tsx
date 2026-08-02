@@ -7,6 +7,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { LogWaterSheet } from '@/screens/main/metrics/LogWaterSheet';
 import { colors, layout, radius, shadows, spacing, typography } from '@/theme';
 import type { MainStackParamList, MainTabParamList } from '@/navigation/types';
 
@@ -37,6 +38,7 @@ const tabs: Record<
 export function TabBar({ state, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [waterOpen, setWaterOpen] = useState(false);
   const [barWidth, setBarWidth] = useState(0);
 
   // Quick actions are pushed on the parent stack (they aren't tabs).
@@ -76,11 +78,16 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
       <FabMenu
         visible={menuOpen}
         onClose={() => setMenuOpen(false)}
-        onSelect={(route) => {
+        onSelect={(action) => {
           setMenuOpen(false);
-          rootNav?.navigate(route);
+          // Water is entered in place: it is logged several times a day, and a
+          // screen push per glass would be the wrong weight for the action.
+          if (action.sheet === 'water') setWaterOpen(true);
+          else if (action.route) rootNav?.navigate(action.route);
         }}
       />
+
+      <LogWaterSheet visible={waterOpen} onClose={() => setWaterOpen(false)} />
 
       {state.routes.map((route, index) => {
         if (route.name === 'Action') {

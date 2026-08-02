@@ -51,6 +51,16 @@ export const validationSchema = Joi.object({
   AI_TIMEOUT_MS: Joi.number().min(1000).max(600_000).default(60_000),
   AI_MAX_RETRIES: Joi.number().min(0).max(5).default(2),
 
+  // ----- Spoonacular (food photography, measured nutrition, published recipes) -----
+  // Optional throughout. Absent a key the meal-plan enrichment step is skipped
+  // and plans fall back to the model's own estimates, so no environment is
+  // forced to hold a food-data subscription just to boot.
+  SPOONACULAR_API_KEY: Joi.string().allow('').optional(),
+  SPOONACULAR_BASE_URL: Joi.string().uri().allow('').default('https://api.spoonacular.com'),
+  SPOONACULAR_TIMEOUT_MS: Joi.number().min(1000).max(60_000).default(10_000),
+  // A week is at most 56 dishes, so that is the ceiling this can usefully take.
+  SPOONACULAR_MAX_LOOKUPS_PER_PLAN: Joi.number().min(0).max(56).default(56),
+
   // ----- Rate limiting (Phase 5) -----
   // Enabled unless explicitly switched off, so an environment that never sets
   // these variables is still protected. Every budget is tunable per environment

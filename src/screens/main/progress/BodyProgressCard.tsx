@@ -1,16 +1,31 @@
 import { Feather } from '@expo/vector-icons';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { LineChart } from '@/components/charts/LineChart';
 import { Card } from '@/components/ui/Card';
 import { colors, layout, spacing, typography } from '@/theme';
 
+import type {
+  BodyStat,
+  ProgressCharts,
+  ProgressPeriod,
+} from '@/services/progress/progressService';
+import { materialIcon } from '@/utils/icons';
+
 import { StatRow } from './StatRow';
-import { bodyStats, chartData, type ProgressPeriod } from './progressData';
 
 /** Body Progress: weight trend line plus BMI / body-fat / muscle measurements. */
-export function BodyProgressCard({ period }: { period: ProgressPeriod }) {
-  const weight = chartData[period].weight;
+export function BodyProgressCard({
+  weight,
+  bodyStats,
+  period,
+  onLogWeight,
+}: {
+  weight: ProgressCharts['weight'];
+  bodyStats: BodyStat[];
+  period: ProgressPeriod;
+  onLogWeight: () => void;
+}) {
   const timeframe = period === 'week' ? 'vs last week' : 'vs last month';
 
   return (
@@ -32,8 +47,28 @@ export function BodyProgressCard({ period }: { period: ProgressPeriod }) {
         </View>
       </View>
 
-      <Text style={styles.axisLabel}>Weight (kg)</Text>
-      <LineChart data={weight.data} labels={weight.labels} height={148} color={colors.primary} />
+      <View style={styles.axisRow}>
+        <Text style={styles.axisLabel}>Weight ({weight.unit})</Text>
+        <Pressable
+          onPress={onLogWeight}
+          accessibilityRole="button"
+          accessibilityLabel="Log your weight"
+          hitSlop={8}
+          style={({ pressed }) => [styles.logBtn, pressed && styles.logBtnPressed]}
+        >
+          <Feather name="plus" size={13} color={colors.primary} />
+          <Text style={styles.logBtnText}>Log weight</Text>
+        </Pressable>
+      </View>
+      {weight.data.length > 0 ? (
+        <LineChart data={weight.data} labels={weight.labels} height={148} color={colors.primary} />
+      ) : (
+        <Pressable onPress={onLogWeight} accessibilityRole="button">
+          <Text style={styles.chartEmpty}>
+            No weigh-ins in this period.{'\n'}Tap “Log weight” to start the trend.
+          </Text>
+        </Pressable>
+      )}
 
       <View style={styles.divider} />
       <StatRow
@@ -41,7 +76,7 @@ export function BodyProgressCard({ period }: { period: ProgressPeriod }) {
           label: stat.label,
           value: stat.value,
           unit: stat.unit,
-          icon: stat.icon,
+          icon: materialIcon(stat.icon),
         }))}
       />
     </Card>
@@ -74,10 +109,37 @@ const styles = StyleSheet.create({
     ...typography.micro,
     color: colors.text.tertiary,
   },
+  axisRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.xs,
+  },
   axisLabel: {
     ...typography.micro,
     color: colors.text.tertiary,
-    marginBottom: spacing.xs,
+  },
+  logBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: colors.primarySurface,
+  },
+  logBtnPressed: {
+    opacity: 0.7,
+  },
+  logBtnText: {
+    ...typography.micro,
+    color: colors.primary,
+  },
+  chartEmpty: {
+    ...typography.caption,
+    color: colors.text.tertiary,
+    textAlign: 'center',
+    paddingVertical: spacing.xl,
   },
   divider: {
     height: layout.hairline,

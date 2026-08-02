@@ -4,15 +4,14 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { colors, layout, radius, spacing, typography } from '@/theme';
 
-import { activitiesFor, type Activity } from './homeData';
+import type { HomeActivity } from '@/services/home/homeService';
+import { accentName, materialIcon } from '@/utils/icons';
 
 /**
- * Today's Activities: Meals, Workout, Supplements, Reminders — each a row with
- * its completion state on the right. Reflects the day selected in the week strip.
+ * Today's Activities: meals, workout, water, steps — each a row with its
+ * completion state on the right. Reflects the day selected in the week strip.
  */
-export function ActivitiesCard({ date }: { date: Date }) {
-  const activities = activitiesFor(date);
-
+export function ActivitiesCard({ activities }: { activities: HomeActivity[] }) {
   return (
     <Card padding="none" style={styles.card}>
       {activities.map((activity, index) => (
@@ -25,11 +24,17 @@ export function ActivitiesCard({ date }: { date: Date }) {
   );
 }
 
-function ActivityRow({ activity }: { activity: Activity }) {
+function ActivityRow({ activity }: { activity: HomeActivity }) {
+  const accent = accentName(activity.accent);
+
   return (
     <View style={styles.row}>
-      <View style={[styles.icon, { backgroundColor: colors.accentSurface[activity.accent] }]}>
-        <MaterialCommunityIcons name={activity.icon} size={18} color={colors.accent[activity.accent]} />
+      <View style={[styles.icon, { backgroundColor: colors.accentSurface[accent] }]}>
+        <MaterialCommunityIcons
+          name={materialIcon(activity.icon)}
+          size={18}
+          color={colors.accent[accent]}
+        />
       </View>
       <View style={styles.copy}>
         <Text style={styles.label}>{activity.label}</Text>

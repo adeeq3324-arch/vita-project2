@@ -1,35 +1,56 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { StyleSheet, Text, View } from 'react-native';
+import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Button } from '@/components/ui/Button';
-import { colors, radius, spacing, typography, type AccentName } from '@/theme';
-import type { AIIcon } from '@/services/ai/types';
+import { colors, radius, spacing, typography } from '@/theme';
+
+type Glyph = keyof typeof MaterialCommunityIcons.glyphMap;
 
 type GenerateGateProps = {
-  icon: AIIcon;
-  accent: AccentName;
+  icon: Glyph;
+  /** Domain colours of the plan being generated. */
+  tint: { color: string; surface: string; dark: string };
   title: string;
   description: string;
   points: string[];
   loading: boolean;
+  /** Why the last attempt failed, when one did. */
+  error?: string | null;
   onGenerate: () => void;
 };
 
 /**
- * Empty state shown before a plan is generated: a hero glyph, an "AI" tag, a
- * short description of what will be built, and the Generate CTA. While the plan
- * generates the button shows a spinner and a personalising caption.
+ * The state a plan screen is in before it has a plan: what will be built, what
+ * it will be built from, and the one button that starts it.
+ *
+ * Generation takes real time and real money, so the gate says plainly what the
+ * plan is made of before asking for it — a user who understands that it comes
+ * from their goal and their conditions is a user who will not tap it twice
+ * expecting a different answer.
  */
-export function GenerateGate({ icon, accent, title, description, points, loading, onGenerate }: GenerateGateProps) {
+export function GenerateGate({
+  icon,
+  tint,
+  title,
+  description,
+  points,
+  loading,
+  error,
+  onGenerate,
+}: GenerateGateProps) {
   return (
     <View style={styles.container}>
-      <View style={styles.body}>
-        <View style={[styles.hero, { backgroundColor: colors.accentSurface[accent] }]}>
-          <MaterialCommunityIcons name={icon} size={48} color={colors.accent[accent]} />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.body}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={[styles.hero, { backgroundColor: tint.surface }]}>
+          <MaterialCommunityIcons name={icon} size={48} color={tint.color} />
         </View>
 
         <View style={styles.aiTag}>
-          <MaterialCommunityIcons name="robot-happy" size={13} color={colors.primary} />
+          <MaterialCommunityIcons name="star-four-points" size={12} color={colors.primary} />
           <Text style={styles.aiTagText}>AI powered</Text>
         </View>
 
@@ -39,25 +60,32 @@ export function GenerateGate({ icon, accent, title, description, points, loading
         <View style={styles.points}>
           {points.map((point) => (
             <View key={point} style={styles.point}>
-              <MaterialCommunityIcons name="check-circle" size={16} color={colors.primary} />
+              <MaterialCommunityIcons name="check-circle" size={16} color={tint.dark} />
               <Text style={styles.pointText}>{point}</Text>
             </View>
           ))}
         </View>
-      </View>
+
+        {error ? (
+          <View style={styles.error}>
+            <Feather name="alert-circle" size={15} color={colors.danger} />
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        ) : null}
+      </ScrollView>
 
       <View style={styles.footer}>
         <Button
-          label={loading ? 'Generating…' : 'Generate with AI'}
+          label={loading ? 'Generating…' : error ? 'Try again' : 'Generate with AI'}
           loading={loading}
           onPress={onGenerate}
           accessibilityHint="Builds your personalised plan from your profile and goal"
         />
-        {loading ? (
-          <Text style={styles.caption}>Personalizing to your goal…</Text>
-        ) : (
-          <Text style={styles.caption}>Built from your goal, profile and health conditions</Text>
-        )}
+        <Text style={styles.caption}>
+          {loading
+            ? 'Personalizing to your goal — this takes a moment…'
+            : 'Built from your goal, profile and health conditions'}
+        </Text>
       </View>
     </View>
   );
@@ -70,7 +98,7 @@ const styles = StyleSheet.create({
     paddingBottom: spacing['3xl'],
   },
   body: {
-    flex: 1,
+    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: spacing.md,
@@ -99,7 +127,7 @@ const styles = StyleSheet.create({
   },
   title: {
     ...typography.h2,
-    color: colors.text.primary,
+    color: colors.plan.ink,
     textAlign: 'center',
     marginTop: spacing.xs,
   },
@@ -125,9 +153,26 @@ const styles = StyleSheet.create({
     color: colors.text.secondary,
     flex: 1,
   },
+  error: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: spacing.sm,
+    alignSelf: 'stretch',
+    marginTop: spacing.base,
+    padding: spacing.md,
+    borderRadius: radius.md,
+    backgroundColor: colors.dangerSurface,
+  },
+  errorText: {
+    ...typography.caption,
+    color: colors.text.secondary,
+    flex: 1,
+    lineHeight: 18,
+  },
   footer: {
     gap: spacing.sm,
     alignItems: 'center',
+    paddingTop: spacing.base,
   },
   caption: {
     ...typography.caption,

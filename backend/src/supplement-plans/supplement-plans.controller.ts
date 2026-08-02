@@ -10,7 +10,11 @@ import {
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AiRateLimit } from '../common/throttler/throttle.decorators';
-import type { SupplementPlanStatusView, SupplementPlanView } from './supplement-plan.view';
+import type {
+  SupplementItemView,
+  SupplementPlanStatusView,
+  SupplementPlanView,
+} from './supplement-plan.view';
 import { SupplementPlansService } from './supplement-plans.service';
 
 /**
@@ -51,6 +55,16 @@ export class SupplementPlansController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<SupplementPlanStatusView> {
     return this.supplementPlans.getStatus(user.id, id);
+  }
+
+  /** One supplement from the plan, for the detail screen. */
+  @Get(':id/items/:itemId')
+  getItem(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('itemId', ParseUUIDPipe) itemId: string,
+  ): Promise<SupplementItemView> {
+    return this.supplementPlans.getItem(user.id, id, itemId);
   }
 
   /** A specific plan and its items. */

@@ -8,6 +8,7 @@ import {
   AiService,
   type AiMessage,
   type AiRequestOptions,
+  type InlineAudio,
 } from '../ai.interface';
 import { tryParseStructured } from '../structured';
 
@@ -43,6 +44,15 @@ const DEFAULT_MAX_OUTPUT_TOKENS = 4096;
 
 /** Largest image the API will inline into a request, bytes. */
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+
+/**
+ * Ceiling on a transcript. A spoken question is a sentence or two; this is a
+ * bound on a model that decides to keep going, not on any real recording.
+ */
+const TRANSCRIPT_MAX_TOKENS = 512;
+
+/** What a transcription returns when the recording carries no speech. */
+const SILENCE_TOKEN = '[[no-speech]]';
 
 /** Status codes worth retrying: request timeout, rate limit, and server faults. */
 const RETRYABLE_STATUSES = new Set([408, 409, 425, 429, 500, 502, 503, 504]);
@@ -87,6 +97,28 @@ export abstract class HttpAiProvider extends AiService {
     messages: AiMessage[],
     opts: AiRequestOptions,
   ): AsyncIterable<string>;
+
+  /**
+   * A completion whose input includes an inlined recording.
+   *
+   * Concrete rather than abstract, and refusing by default: audio is the one
+   * capability the three formats genuinely differ on, and an adapter that cannot
+   * carry it should not be forced to write a stub that pretends otherwise. The
+   * refusal names the provider, so the fix — point `AI_PROVIDER_ID` at a format
+   * that accepts audio — is readable from the error alone.
+   */
+  protected completeWithAudio(
+    _audio: InlineAudio,
+    _prompt: string,
+    _opts: AiRequestOptions,
+  ): Promise<string> {
+    return Promise.reject(
+      new AiGenerationError(
+        `The configured model service (${this.config.providerId}) does not accept audio input.`,
+        false,
+      ),
+    );
+  }
 
   // ── public capabilities ───────────────────────────────────────────────────
 
@@ -169,6 +201,35 @@ export abstract class HttpAiProvider extends AiService {
     const image = await this.fetchImage(imageUrl, opts);
     const text = await this.completeWithImage(image, prompt, opts);
     return text.trim();
+  }
+
+  /**
+   * Transcribes a recording, preserving the language it was spoken in.
+   *
+   * The instruction says "write it down", never "answer it": a voice note is the
+   * user typing with their mouth, and it has to land in the conversation as the
+   * words they actually said. Left looser, a chat model happily replies to the
+   * question instead of transcribing it, and the user's own turn is lost.
+   *
+   * Silence is a real outcome — a mistaken tap on the microphone — so it is
+   * given an explicit token to emit rather than being left to produce an empty
+   * completion, which every provider reports as a generation failure.
+   */
+  async transcribeAudio(audio: InlineAudio, opts: AiRequestOptions = {}): Promise<string> {
+    const raw = await this.completeWithAudio(
+      audio,
+      [
+        'Transcribe this recording word for word.',
+        'Write it in the language and script it was spoken in — never translate it.',
+        'Output the transcript alone: no quotation marks, no speaker labels, no',
+        'timestamps, no commentary, and no answer to anything that was asked.',
+        `If there is no intelligible speech, output exactly ${SILENCE_TOKEN} and nothing else.`,
+      ].join(' '),
+      { temperature: 0, maxOutputTokens: TRANSCRIPT_MAX_TOKENS, ...opts },
+    );
+
+    const text = raw.trim();
+    return text === SILENCE_TOKEN ? '' : text;
   }
 
   chat(messages: AiMessage[], opts: AiRequestOptions = {}): AsyncIterable<string> {

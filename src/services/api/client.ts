@@ -131,15 +131,23 @@ async function attempt<T>(path: string, options: RequestOptions): Promise<T> {
   try {
     const token = skipAuth ? null : await getAuthToken();
 
+    // A multipart body is passed through untouched, and without a content type:
+    // only the runtime's own FormData knows the boundary parameter it has to be
+    // labelled with, and setting the header ourselves would strip it and make
+    // the request unparseable at the other end.
+    const isMultipart = typeof FormData !== 'undefined' && body instanceof FormData;
+
     const response = await fetch(`${env.apiUrl}${path}`, {
       ...rest,
       signal: controller.signal,
       headers: {
-        'Content-Type': 'application/json',
+        ...(isMultipart ? {} : { 'Content-Type': 'application/json' }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...headers,
       },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      ...(body !== undefined
+        ? { body: isMultipart ? (body as FormData) : JSON.stringify(body) }
+        : {}),
     });
 
     // Accept both application/json and RFC 7807 application/problem+json.

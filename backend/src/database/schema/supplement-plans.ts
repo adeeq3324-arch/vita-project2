@@ -1,14 +1,17 @@
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 import {
   date,
   index,
+  integer,
+  jsonb,
+  numeric,
   pgTable,
   text,
   timestamp,
   uniqueIndex,
   uuid,
 } from 'drizzle-orm/pg-core';
-import { generationStatusEnum, supplementTimeEnum } from './enums';
+import { generationStatusEnum, supplementTierEnum, supplementTimeEnum } from './enums';
 import { users } from './users';
 
 /**
@@ -47,15 +50,23 @@ export const supplementPlans = pgTable(
   ],
 );
 
+/** One line of a supplement facts panel: what is in a serving, and how much. */
+export interface SupplementIngredient {
+  /** The substance, e.g. "Vitamin D3 (cholecalciferol)". */
+  name: string;
+  /** The amount in one serving, with its unit, e.g. "1000 IU", "25 g". */
+  amount: string;
+}
+
 /**
  * One supplement in a monthly regimen.
  *
- * `guidance` is a single free-text field on purpose. Dosage, timing rationale
- * and practical tips are not independent facts to be stored in separate columns
- * — they only make sense together, and splitting them would invite the UI to
- * render a dose figure stripped of the caveats that qualify it. The generator
- * always closes this text with a line directing the user to a healthcare
- * professional, so the disclaimer travels with the advice wherever it is shown.
+ * The item deliberately describes the *substance* rather than instructing the
+ * user on taking it. `ingredients` and `servingSize` are what a label states and
+ * a person can check; `recommendation` is the one piece of advice attached to it,
+ * and it always resolves to the same thing — take this to a healthcare provider
+ * and agree a dose with them. Storing it that way means no surface can render
+ * the substance without the direction to ask a professional about it.
  */
 export const supplementPlanItems = pgTable(
   'supplement_plan_items',
@@ -67,11 +78,62 @@ export const supplementPlanItems = pgTable(
 
     supplementName: text('supplement_name').notNull(),
     bestTime: supplementTimeEnum('best_time').notNull(),
+    /** Whether the regimen depends on this item or merely offers it. */
+    tier: supplementTierEnum('tier').notNull().default('core'),
 
-    /** Suggested range, timing rationale, tips and the disclaimer, as one piece. */
-    guidance: text('guidance').notNull(),
+    /** What kind of supplement this is, e.g. "Protein supplement". */
+    category: text('category').notNull().default(''),
+    /** The one-line benefit shown under the name, e.g. "Muscle recovery & growth". */
+    headline: text('headline').notNull().default(''),
+
+    /** What one serving is, as a label states it: "1 capsule", "1 scoop (30 g)". */
+    servingSize: text('serving_size').notNull().default(''),
+    /**
+     * The supplement facts panel: every substance in a serving and how much of
+     * it, including the energy and macronutrients where the form has any.
+     *
+     * Stored as JSON rather than two parallel arrays because a name and its
+     * amount are one fact — parallel arrays can fall out of step, and a panel
+     * showing "25 g" against the wrong substance is worse than showing nothing.
+     */
+    ingredients: jsonb('ingredients')
+      .$type<SupplementIngredient[]>()
+      .notNull()
+      .default(sql`'[]'::jsonb`),
+
     /** Why this supplement was suggested for this user, in one short line. */
     purpose: text('purpose').notNull(),
+    /**
+     * The closing advice: see a healthcare provider before starting, and agree
+     * the amount with them. Written per item so it can name what actually
+     * matters for that substance, and guaranteed by code to carry the standing
+     * disclaimer regardless of what the model returned.
+     */
+    recommendation: text('recommendation').notNull().default(''),
+
+    /**
+     * The short, checkable claims behind the suggestion. Stored as a list rather
+     * than a paragraph because the client renders them as a checklist, and a
+     * paragraph split on punctuation is a rendering bug waiting to happen.
+     */
+    benefits: text('benefits').array().notNull().default([]),
+    /**
+     * Cautions specific to this supplement — interactions, storage, who should
+     * not take it. Kept separate from the facts panel so a surface can never
+     * show what is in the product while omitting who should not take it.
+     */
+    safety: text('safety').array().notNull().default([]),
+
+    /**
+     * Product identity, for the day a real supplement catalogue backs this.
+     * Never model-generated: an invented brand or an invented rating is a
+     * fabricated endorsement, so these stay null until something authoritative
+     * fills them in, and the client simply omits what is missing.
+     */
+    brand: text('brand'),
+    rating: numeric('rating', { precision: 2, scale: 1 }),
+    ratingCount: integer('rating_count'),
+    imageUrl: text('image_url'),
 
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
   },

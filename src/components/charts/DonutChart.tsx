@@ -32,7 +32,22 @@ export function DonutChart({
   const circumference = 2 * Math.PI * radius;
   const total = segments.reduce((sum, s) => sum + s.value, 0) || 1;
 
+  // Each arc starts where the previous one ended, so the geometry is resolved
+  // up front in a plain loop. Accumulating inside the JSX `map` below would
+  // make the rendered output depend on the order the callbacks happen to run.
+  const arcs: { dash: number; rotation: number; color: string }[] = [];
   let startFraction = 0;
+  for (const segment of segments) {
+    const fraction = segment.value / total;
+    // Small gap between segments for definition.
+    const gap = 2;
+    arcs.push({
+      dash: Math.max(fraction * circumference - gap, 0),
+      rotation: startFraction * 360 - 90,
+      color: segment.color,
+    });
+    startFraction += fraction;
+  }
 
   return (
     <View style={{ width: size, height: size }}>
@@ -45,29 +60,21 @@ export function DonutChart({
           strokeWidth={strokeWidth}
           fill="none"
         />
-        {segments.map((segment, index) => {
-          const fraction = segment.value / total;
-          const dash = fraction * circumference;
-          // Small gap between segments for definition.
-          const gap = 2;
-          const rotation = startFraction * 360 - 90;
-          startFraction += fraction;
-          return (
-            <Circle
-              key={index}
-              cx={size / 2}
-              cy={size / 2}
-              r={radius}
-              stroke={segment.color}
-              strokeWidth={strokeWidth}
-              strokeLinecap="round"
-              fill="none"
-              strokeDasharray={`${Math.max(dash - gap, 0)} ${circumference}`}
-              rotation={rotation}
-              origin={`${size / 2}, ${size / 2}`}
-            />
-          );
-        })}
+        {arcs.map((arc, index) => (
+          <Circle
+            key={index}
+            cx={size / 2}
+            cy={size / 2}
+            r={radius}
+            stroke={arc.color}
+            strokeWidth={strokeWidth}
+            strokeLinecap="round"
+            fill="none"
+            strokeDasharray={`${arc.dash} ${circumference}`}
+            rotation={arc.rotation}
+            origin={`${size / 2}, ${size / 2}`}
+          />
+        ))}
       </Svg>
       {centerLabel ? (
         <View style={styles.center} pointerEvents="none">

@@ -10,6 +10,7 @@ import { FoodScannerScreen } from '@/screens/main/FoodScannerScreen';
 import { FoodTrackingScreen } from '@/screens/main/FoodTrackingScreen';
 import { MealDetailScreen } from '@/screens/main/MealDetailScreen';
 import { MealPlanScreen } from '@/screens/main/MealPlanScreen';
+import { MealRecipeScreen } from '@/screens/main/MealRecipeScreen';
 import { ProfileScreen } from '@/screens/main/ProfileScreen';
 import { ChangeGoalScreen } from '@/screens/main/profile/ChangeGoalScreen';
 import { EditHealthConditionsScreen } from '@/screens/main/profile/EditHealthConditionsScreen';
@@ -100,6 +101,7 @@ export function MainNavigator() {
 
       <Stack.Screen name="MealPlan" component={MealPlanScreen} />
       <Stack.Screen name="MealDetail" component={MealDetailScreen} />
+      <Stack.Screen name="MealRecipe" component={MealRecipeScreen} />
       <Stack.Screen name="SupplementPlan" component={SupplementPlanScreen} />
       <Stack.Screen name="SupplementDetail" component={SupplementDetailScreen} />
 

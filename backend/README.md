@@ -55,7 +55,7 @@ src/
 ├── storage/                      # Supabase Storage for scan images (private + signed URLs)
 ├── meal-plans/                   # Weekly AI meal plans (queued)
 ├── supplement-plans/             # Monthly AI supplement plans (queued + monthly cron)
-├── coach/                        # Streaming AI health coach (SSE)
+├── coach/                        # Streaming AI health coach (SSE) + voice transcription
 ├── scanner/                      # Food photo, colour-quality photo, and barcode scanners
 │
 │                                 # ── Phase 4: progress & engagement ──
@@ -195,17 +195,23 @@ where the user expects it.
 | Method | Path                                | Description                                          |
 | ------ | ----------------------------------- | ---------------------------------------------------- |
 | POST   | `/meal-plans/generate`              | Start this week's plan. Returns `202` immediately with an id to poll. |
+| GET    | `/meal-plans/current`               | This week's plan. Creates nothing; 404 when there is none. |
 | GET    | `/meal-plans/:id/status`            | Poll target — `{ mealPlanId, status, error }`.       |
-| GET    | `/meal-plans/:id`                   | The plan, grouped into seven days with per-day totals. |
+| GET    | `/meal-plans/:id`                   | The plan, grouped into seven days with per-day totals (kcal, protein, carbs, fat, fibre). |
+| GET    | `/meal-plans/:id/items/:itemId`     | One meal, with its nutrition and the reason it was chosen. |
+| POST   | `/meal-plans/:id/items/:itemId/swap`| Replace one meal with a different dish of equivalent nutrition. Generated inline; returns the replacement. |
+| POST   | `/meal-plans/:id/items/:itemId/recipe`| The recipe for one meal — shopping list, method, timings, tips. Generated inline on first request and stored; every later call returns the same one. `POST` so a client retry cannot repeat the generation. |
 | POST   | `/supplement-plans/generate`        | Ensure this month has a plan. Idempotent — never generates twice in a month. |
 | GET    | `/supplement-plans/current`         | This month's plan. Creates nothing; 404 when there is none. |
 | GET    | `/supplement-plans/:id/status`      | Poll target — same contract as meal plans.           |
-| GET    | `/supplement-plans/:id`             | A plan, as a flat list and as a daily schedule.      |
+| GET    | `/supplement-plans/:id`             | A plan, as a flat list, a daily schedule and core/optional counts. |
+| GET    | `/supplement-plans/:id/items/:itemId` | One supplement: timing, purpose, benefits and cautions. |
 | GET    | `/coach/personalities`              | The three coaching voices, for the picker.           |
 | POST   | `/coach/conversations`              | Open a thread (`personality`, optional `title`).     |
 | GET    | `/coach/conversations`              | The caller's threads, most recently active first.    |
 | GET    | `/coach/conversations/:id/messages` | Full history, oldest first.                          |
 | POST   | `/coach/conversations/:id/messages` | Send a turn; the reply **streams** as `text/event-stream`. |
+| POST   | `/coach/voice`                      | `multipart/form-data` with an `audio` part — transcribe a spoken question. Returns the words, does not send them. |
 | POST   | `/scanner/food`                     | `multipart/form-data` with an `image` part — identify a food and score it. |
 | POST   | `/scanner/quality`                  | Same upload — judge freshness and quality.           |
 | POST   | `/scanner/barcode`                  | `{ barcode }` — resolve the product and give a personalised verdict. |
@@ -254,11 +260,14 @@ scans it afterwards.
 
 #### Supplement safety
 
-Dosage, timing rationale and tips are one `guidance` field rather than separate
-columns, so a dose figure can never be rendered stripped of the caveats that
-qualify it. A "consult a healthcare provider" line is appended **in code** on the
-way into the database, not requested in the prompt — a disclaimer that depends on
-the model remembering it is not a disclaimer.
+The generator describes the substance and never prescribes an amount. What a
+serving contains is stated as a facts panel (`serving_size`, `ingredients`) — the
+figures a person can check against a label — while how much *they* should take is
+routed to a clinician by `recommendation`, which the schema forbids from carrying
+a dose of its own. The standing "speak to a doctor or pharmacist and agree the
+right amount" line is appended **in code** on the way into the database, not
+requested in the prompt: a disclaimer that depends on the model remembering it is
+not a disclaimer.
 
 ### Progress & engagement (Phase 4)
 
@@ -489,12 +498,21 @@ always runs in CI.
   entries are upserted on `slug`, so re-running corrects values without
   duplicating rows or breaking the diary entries that point at them.
 - `npm run db:seed:prod` — the same, from compiled output.
+- `npm run db:seed:plan -- <email>` — **development only.** Writes one ready week
+  of meals, recipes for the first day's four dishes, and one ready month of
+  supplements for the named account, straight into the tables the generator
+  writes to. It exists so the planning screens can be reviewed before an AI
+  provider is configured; it refuses to run when `NODE_ENV=production`, and a
+  real generation replaces what it wrote. The rest of the week is left without
+  recipes on purpose — that is the state a real plan is in until a dish is
+  opened, and it is what exercises the generate-on-first-open path.
 - `npm run db:studio` — open Drizzle Studio.
 
 Row Level Security is enabled on every table. User-owned tables carry a
 `auth.uid() = user_id` policy; child tables without their own `user_id`
 (`meal_plan_items`, `supplement_plan_items`, `coach_messages`) inherit ownership
-through an `EXISTS` check against their parent. `foods` and `products` are shared
+through an `EXISTS` check against their parent — `meal_recipes` does the same
+across two hops, from the recipe to its meal to the plan that holds the owner. `foods` and `products` are shared
 caches readable by any authenticated user and writable only by the owner role the
 API connects as. `achievements` is deliberately **read-only** to the
 `authenticated` role — badges are awarded by the backend from what the user

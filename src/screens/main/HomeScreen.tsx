@@ -1,17 +1,19 @@
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { SectionHeader } from '@/components/ui/SectionHeader';
-import { useOnboarding } from '@/context/OnboardingContext';
+import { ErrorState, LoadingState } from '@/components/ui/StateView';
+import { useDataChanged, useFocusRefresh, useResource } from '@/hooks';
+import { getFeed } from '@/services/home/homeService';
 import { colors, layout, spacing } from '@/theme';
 import type { MainStackParamList, MainTabParamList } from '@/navigation/types';
 
 import { ActivitiesCard } from './home/ActivitiesCard';
 import { AIInsightCard } from './home/AIInsightCard';
-import { activitiesFor, completedCount, dayLabel } from './home/homeData';
+import { dayLabel, insightFor, motivationFor, toCalendarDate } from './home/homeFormat';
 import { HealthScoreCard } from './home/HealthScoreCard';
 import { HomeHeader } from './home/HomeHeader';
 import { MotivationCard } from './home/MotivationCard';
@@ -23,25 +25,31 @@ type Props = BottomTabScreenProps<MainTabParamList, 'Home'>;
 
 export function HomeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const { data } = useOnboarding();
-  const firstName = data.username.trim() || 'there';
-
   const [selectedDay, setSelectedDay] = useState(() => new Date());
 
-  // Section headers and the activities count follow the selected day.
+  const date = toCalendarDate(selectedDay);
+  const feed = useResource(() => getFeed(date), [date]);
+
+  // Meals and workouts are logged from other screens; coming back to the
+  // dashboard must show what they changed.
+  useFocusRefresh(feed.refresh);
+  // Water is logged from the FAB, in a sheet over this screen — focus never
+  // changes, so the tiles would otherwise sit still while the total moves.
+  useDataChanged(['diary', 'metrics', 'workouts'], feed.refresh);
+
   const label = dayLabel(selectedDay);
-  const dayActivities = activitiesFor(selectedDay);
-  const activitiesDone = completedCount(dayActivities);
 
   // Profile lives in the parent stack (it isn't a tab), so reach it via the parent.
-  const openProfile = () =>
-    navigation.getParent<NativeStackNavigationProp<MainStackParamList>>()?.navigate('Profile');
+  const openProfile = useCallback(
+    () => navigation.getParent<NativeStackNavigationProp<MainStackParamList>>()?.navigate('Profile'),
+    [navigation],
+  );
 
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <HomeHeader
-          name={firstName}
+          name={feed.data?.name?.trim() || 'there'}
           onProfilePress={openProfile}
           onNotificationsPress={() => {
             // Notifications screen arrives with the Smart Notifications feature.
@@ -51,6 +59,13 @@ export function HomeScreen({ navigation }: Props) {
 
       <ScrollView
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={feed.refreshing}
+            onRefresh={feed.refresh}
+            tintColor={colors.primary}
+          />
+        }
         contentContainerStyle={[
           styles.content,
           // Clear the floating tab bar + FAB at the bottom.
@@ -59,33 +74,43 @@ export function HomeScreen({ navigation }: Props) {
       >
         <WeekStrip selected={selectedDay} onSelect={setSelectedDay} />
 
-        <HealthScoreCard date={selectedDay} />
+        {feed.loading ? <LoadingState label="Loading your day…" /> : null}
 
-        <View style={styles.section}>
-          <SectionHeader title={`${label}'s Overview`} action="Edit" onActionPress={() => {}} />
-          <OverviewGrid date={selectedDay} />
-        </View>
+        {feed.error && !feed.data ? (
+          <ErrorState message={feed.error.message} onRetry={feed.refresh} />
+        ) : null}
 
-        <View style={styles.section}>
-          <SectionHeader
-            title={`${label}'s Activities`}
-            action={`${activitiesDone}/${dayActivities.length} Completed`}
-          />
-          <ActivitiesCard date={selectedDay} />
-        </View>
+        {feed.data ? (
+          <>
+            <HealthScoreCard score={feed.data.healthScore} />
 
-        <View style={styles.section}>
-          <AIInsightCard date={selectedDay} />
-        </View>
+            <View style={styles.section}>
+              <SectionHeader title={`${label}'s Overview`} />
+              <OverviewGrid metrics={feed.data.metrics} />
+            </View>
 
-        <View style={styles.section}>
-          <SectionHeader title="Progress Overview" />
-          <ProgressOverviewCard date={selectedDay} />
-        </View>
+            <View style={styles.section}>
+              <SectionHeader
+                title={`${label}'s Activities`}
+                action={`${feed.data.activitiesCompleted}/${feed.data.activities.length} Completed`}
+              />
+              <ActivitiesCard activities={feed.data.activities} />
+            </View>
 
-        <View style={styles.section}>
-          <MotivationCard date={selectedDay} />
-        </View>
+            <View style={styles.section}>
+              <AIInsightCard insight={insightFor(feed.data)} />
+            </View>
+
+            <View style={styles.section}>
+              <SectionHeader title="Progress Overview" />
+              <ProgressOverviewCard progress={feed.data.progress} />
+            </View>
+
+            <View style={styles.section}>
+              <MotivationCard motivation={motivationFor(selectedDay, feed.data.name.trim())} />
+            </View>
+          </>
+        ) : null}
       </ScrollView>
     </View>
   );

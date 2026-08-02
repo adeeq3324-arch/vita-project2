@@ -133,13 +133,56 @@ export const aiJobTypeEnum = pgEnum('ai_job_type', [
   'coachChat',
 ]);
 
-/** When during the day a supplement is best taken. */
+/**
+ * When during the day a supplement is best taken.
+ *
+ * The three training-relative slots are as much a timing instruction as the
+ * clock-based ones: creatine "post-workout" and magnesium "before bed" are not
+ * approximations of morning/evening, and collapsing them into one would lose the
+ * only part of the advice the user has to act on.
+ */
 export const supplementTimeEnum = pgEnum('supplement_time', [
   'morning',
   'afternoon',
   'evening',
   'withMeal',
+  'preWorkout',
+  'postWorkout',
+  'beforeBed',
 ]);
+
+/**
+ * How essential a supplement is within a regimen.
+ *
+ * `core` items carry the plan's intent and are what the user is asked to commit
+ * to; `optional` ones are worth considering but nothing is lost by skipping
+ * them. The distinction is the filter the plan screen offers, and it exists so a
+ * long stack cannot read as though every item were equally important.
+ */
+export const supplementTierEnum = pgEnum('supplement_tier', ['core', 'optional']);
+
+/**
+ * How demanding a recipe is to cook.
+ *
+ * Three values, because a cook deciding what to make tonight is asking one
+ * question — can I face this after work — and a finer scale would only invite
+ * the model to split hairs the reader cannot act on.
+ */
+export const recipeDifficultyEnum = pgEnum('recipe_difficulty', ['easy', 'medium', 'hard']);
+
+/**
+ * Where a planned meal's nutrition figures actually came from.
+ *
+ * `estimated` is the model's own arithmetic for a dish it has never weighed;
+ * `verified` means the dish was matched to a published recipe and the figures
+ * are that recipe's measured panel, scaled to the user's portion.
+ *
+ * Stored rather than inferred because the client must be able to *say which*.
+ * A sodium figure a person with high blood pressure is acting on has to be
+ * labelled honestly, and a UI cannot tell a guess from a measurement by looking
+ * at the number.
+ */
+export const nutritionSourceEnum = pgEnum('nutrition_source', ['estimated', 'verified']);
 
 /** Which scanner produced a result. */
 export const scanTypeEnum = pgEnum('scan_type', ['food', 'colorQuality', 'barcode']);

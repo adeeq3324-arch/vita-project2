@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { DetailHeader } from '@/components/layout/DetailHeader';
 import { Screen } from '@/components/layout/Screen';
@@ -21,17 +21,25 @@ export function BarcodeResultScreen({ navigation }: Props) {
 
   const macro = (label: string) => product.nutrients.find((n) => n.label === label)?.value ?? 0;
 
-  const addToDiary = () => {
-    addMeal({
-      name: product.name,
-      kcal: macro('Calories'),
-      protein: macro('Protein'),
-      carbs: macro('Carbs'),
-      fat: macro('Fat'),
-      icon: product.icon,
-      accent: product.accent,
-    });
-    navigation.navigate('FoodTracking');
+  // Persisted, so navigation waits for the write to land — see FoodScanResult.
+  const addToDiary = async () => {
+    try {
+      await addMeal({
+        name: product.name,
+        kcal: macro('Calories'),
+        protein: macro('Protein'),
+        carbs: macro('Carbs'),
+        fat: macro('Fat'),
+        icon: product.icon,
+        accent: product.accent,
+      });
+      navigation.navigate('FoodTracking');
+    } catch (error) {
+      Alert.alert(
+        'Could not log that product',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    }
   };
 
   return (

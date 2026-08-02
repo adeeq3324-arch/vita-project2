@@ -1,4 +1,3 @@
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
@@ -7,14 +6,11 @@ import { Screen } from '@/components/layout/Screen';
 import { Avatar } from '@/components/ui/Avatar';
 import { Card } from '@/components/ui/Card';
 import { ListRow } from '@/components/ui/ListRow';
-import { useOnboarding } from '@/context/OnboardingContext';
+import { ErrorState, LoadingState } from '@/components/ui/StateView';
+import { useFocusRefresh, useResource } from '@/hooks';
+import { profileService } from '@/services';
 import { colors, radius, spacing, typography } from '@/theme';
-import {
-  activityLabels,
-  conditionsCount,
-  genderLabels,
-  goalLabel,
-} from '@/utils/profileLabels';
+import { activityLabels, genderLabels, goalLabels } from '@/utils/profileLabels';
 import type { MainStackParamList } from '@/navigation/types';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'Profile'>;
@@ -28,20 +24,41 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** "Member since March 2026" — the one status line that is a fact about the account. */
+function memberSince(iso: string): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return 'Member';
+  return `Member since ${date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`;
+}
+
 export function ProfileScreen({ navigation }: Props) {
-  const { data } = useOnboarding();
-  const name = data.username.trim() || 'Your profile';
-  const conditions = conditionsCount(data.conditions);
+  // Read from the account rather than the onboarding buffer: that buffer is
+  // empty for a returning user, and stale for anyone who edited on another
+  // device.
+  const overview = useResource(() => profileService.getOverview(), []);
+  useFocusRefresh(overview.refresh);
+
+  const profile = overview.data?.profile ?? null;
+  const goal = overview.data?.goal ?? null;
+  const conditions = overview.data?.conditions ?? [];
+
+  const name = profile?.username.trim() || 'Your profile';
 
   const info: { label: string; value: string }[] = [
-    { label: 'Age', value: data.age ? `${data.age}` : '—' },
-    { label: 'Gender', value: data.gender ? genderLabels[data.gender] : '—' },
-    { label: 'Height', value: data.height ? `${data.height} cm` : '—' },
-    { label: 'Weight', value: data.weight ? `${data.weight} kg` : '—' },
-    { label: 'Goal', value: goalLabel(data.goal) },
-    { label: 'Target Weight', value: data.targetWeight ? `${data.targetWeight} kg` : '—' },
-    { label: 'Activity Level', value: data.activityLevel ? activityLabels[data.activityLevel] : '—' },
-    { label: 'Health Conditions', value: conditions > 0 ? `${conditions} Selected` : 'None' },
+    { label: 'Age', value: profile ? `${profile.age}` : '—' },
+    { label: 'Gender', value: profile ? genderLabels[profile.gender] : '—' },
+    { label: 'Height', value: profile ? `${profile.height} cm` : '—' },
+    { label: 'Weight', value: profile ? `${profile.weight} kg` : '—' },
+    { label: 'Goal', value: goal ? goalLabels[goal.primaryGoal] : '—' },
+    {
+      label: 'Target Weight',
+      value: goal?.targetWeight != null ? `${goal.targetWeight} kg` : '—',
+    },
+    { label: 'Activity Level', value: profile ? activityLabels[profile.activityLevel] : '—' },
+    {
+      label: 'Health Conditions',
+      value: conditions.length > 0 ? `${conditions.length} Selected` : 'None',
+    },
   ];
 
   return (
@@ -54,21 +71,28 @@ export function ProfileScreen({ navigation }: Props) {
         <View style={styles.hero}>
           <Avatar name={name} size={88} />
           <Text style={styles.name}>{name}</Text>
-          <View style={styles.membership}>
-            <MaterialCommunityIcons name="crown" size={13} color={colors.warning} />
-            <Text style={styles.membershipText}>Gold Member</Text>
-          </View>
+          {profile ? <Text style={styles.member}>{memberSince(profile.createdAt)}</Text> : null}
         </View>
 
-        <Text style={styles.sectionTitle}>My Information</Text>
-        <Card>
-          {info.map((item, index) => (
-            <View key={item.label}>
-              {index > 0 ? <View style={styles.divider} /> : null}
-              <InfoRow label={item.label} value={item.value} />
-            </View>
-          ))}
-        </Card>
+        {overview.loading ? <LoadingState label="Loading your profile…" /> : null}
+
+        {overview.error && !overview.data ? (
+          <ErrorState message={overview.error.message} onRetry={overview.refresh} />
+        ) : null}
+
+        {overview.data ? (
+          <>
+            <Text style={styles.sectionTitle}>My Information</Text>
+            <Card>
+              {info.map((item, index) => (
+                <View key={item.label}>
+                  {index > 0 ? <View style={styles.divider} /> : null}
+                  <InfoRow label={item.label} value={item.value} />
+                </View>
+              ))}
+            </Card>
+          </>
+        ) : null}
 
         <Text style={styles.sectionTitle}>Account</Text>
         <Card padding="none" style={styles.listCard}>
@@ -81,23 +105,31 @@ export function ProfileScreen({ navigation }: Props) {
           <ListRow
             icon="target"
             label="Change Goal"
-            value={goalLabel(data.goal)}
+            value={goal ? goalLabels[goal.primaryGoal] : undefined}
             onPress={() => navigation.navigate('ChangeGoal')}
           />
           <View style={styles.divider} />
           <ListRow
             icon="heart-pulse"
             label="Health Conditions"
-            value={conditions > 0 ? `${conditions}` : 'None'}
+            value={conditions.length > 0 ? `${conditions.length}` : 'None'}
             onPress={() => navigation.navigate('EditHealthConditions')}
           />
         </Card>
 
         <Text style={styles.sectionTitle}>Preferences</Text>
         <Card padding="none" style={styles.listCard}>
-          <ListRow icon="bell-outline" label="Reminders" onPress={() => navigation.navigate('Reminders')} />
+          <ListRow
+            icon="bell-outline"
+            label="Reminders"
+            onPress={() => navigation.navigate('Reminders')}
+          />
           <View style={styles.divider} />
-          <ListRow icon="cog-outline" label="Settings" onPress={() => navigation.navigate('Settings')} />
+          <ListRow
+            icon="cog-outline"
+            label="Settings"
+            onPress={() => navigation.navigate('Settings')}
+          />
         </Card>
       </ScrollView>
     </Screen>
@@ -122,19 +154,15 @@ const styles = StyleSheet.create({
     color: colors.text.primary,
     marginTop: spacing.md,
   },
-  membership: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    backgroundColor: colors.warningSurface,
+  member: {
+    ...typography.caption,
+    color: colors.text.tertiary,
+    backgroundColor: colors.surfaceSunken,
     borderRadius: radius.full,
     paddingHorizontal: spacing.md,
     paddingVertical: 4,
     marginTop: spacing.sm,
-  },
-  membershipText: {
-    ...typography.micro,
-    color: '#B45309',
+    overflow: 'hidden',
   },
   sectionTitle: {
     ...typography.h4,

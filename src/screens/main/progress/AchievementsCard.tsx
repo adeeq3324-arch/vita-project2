@@ -4,11 +4,12 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { colors, radius, spacing, typography } from '@/theme';
 
-import { achievements, type Achievement } from './progressData';
+import type { Achievement } from '@/services/progress/progressService';
+import { accentName, materialIcon } from '@/utils/icons';
 
 /** Achievement system: a horizontal rail of earned and locked badges. */
-export function AchievementsCard() {
-  const earned = achievements.filter((a) => a.unlocked).length;
+export function AchievementsCard({ achievements }: { achievements: Achievement[] }) {
+  const earned = achievements.filter((achievement) => achievement.unlocked).length;
 
   return (
     <Card padding="none" style={styles.card}>
@@ -32,9 +33,11 @@ export function AchievementsCard() {
 }
 
 function Badge({ achievement }: { achievement: Achievement }) {
-  const { unlocked, color, icon, label } = achievement;
+  const { unlocked, icon, label } = achievement;
+  const color = colors.accent[accentName(achievement.accent)];
+
   return (
-    <View style={styles.badge}>
+    <View style={styles.badge} accessibilityLabel={`${label}. ${achievement.detail}`}>
       <View
         style={[
           styles.medal,
@@ -42,7 +45,7 @@ function Badge({ achievement }: { achievement: Achievement }) {
         ]}
       >
         <MaterialCommunityIcons
-          name={unlocked ? icon : 'lock'}
+          name={unlocked ? materialIcon(icon) : 'lock'}
           size={22}
           color={unlocked ? colors.white : colors.text.disabled}
         />

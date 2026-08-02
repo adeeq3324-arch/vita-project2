@@ -3,10 +3,12 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { colors, radius, spacing, typography } from '@/theme';
 
-import { milestones } from './progressData';
+import type { Achievement } from '@/services/progress/progressService';
 
 /** Milestones: goal-tracking rows with a labelled progress bar each. */
-export function MilestonesCard() {
+export function MilestonesCard({ milestones }: { milestones: Achievement[] }) {
+  if (milestones.length === 0) return null;
+
   return (
     <Card>
       <Text style={styles.title}>Milestones</Text>

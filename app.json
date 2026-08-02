@@ -35,6 +35,12 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 120
         }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Vital AI uses the microphone so you can ask your AI coach a question out loud."
+        }
       ]
     ],
     "experiments": {

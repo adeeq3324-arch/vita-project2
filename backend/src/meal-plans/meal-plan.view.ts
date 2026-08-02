@@ -9,14 +9,61 @@ import type { MealPlan, MealPlanItem } from '../database/schema';
  * means the figures shown always match the ones the plan was validated against.
  */
 
+/**
+ * The measured extras behind a dish, for one serving.
+ *
+ * Only ever present on a meal whose nutrition was verified against a published
+ * recipe — these are figures nobody can estimate, so a null here means "not
+ * known" and never "none".
+ */
+export interface MealNutritionFactsView {
+  /** Grams. */
+  saturatedFat: number | null;
+  /** Grams. */
+  sugar: number | null;
+  sodiumMg: number | null;
+  cholesterolMg: number | null;
+  potassiumMg: number | null;
+}
+
+/** Attribution for a dish matched to a published recipe. */
+export interface MealSourceView {
+  /** Who published it, e.g. "foodista.com". */
+  name: string;
+  /** Where, so the client can offer to open the original. Null when unknown. */
+  url: string | null;
+}
+
 export interface MealPlanItemView {
   id: string;
+  /** ISO weekday the meal belongs to, so a detail view can name its day. */
+  dayOfWeek: number;
   mealType: MealPlanItem['mealType'];
+  /**
+   * When to eat it, as local 24-hour "HH:MM". Null on plans generated before
+   * the planner was asked to time meals, so the client shows no time at all
+   * rather than inventing one.
+   */
+  scheduledTime: string | null;
   name: string;
   kcal: number;
   protein: number;
   carbs: number;
   fat: number;
+  fiber: number;
+  /**
+   * Whether the five figures above were measured or estimated. The client
+   * labels them differently, so a guess is never shown as a measurement.
+   */
+  nutritionSource: MealPlanItem['nutritionSource'];
+  /** Saturated fat, sugar, sodium and the rest. Null unless verified. */
+  facts: MealNutritionFactsView | null;
+  /** Why this dish suits the user's goal. Empty on plans generated before this existed. */
+  reasoning: string;
+  /** Photograph of the dish, or null when none has been attached. */
+  imageUrl: string | null;
+  /** Where the dish's photograph and figures came from. Null when unmatched. */
+  source: MealSourceView | null;
 }
 
 export interface MealPlanDayTotals {
@@ -24,6 +71,7 @@ export interface MealPlanDayTotals {
   protein: number;
   carbs: number;
   fat: number;
+  fiber: number;
 }
 
 export interface MealPlanDayView {
@@ -64,13 +112,38 @@ const DAY_NAMES = [
   'Sunday',
 ] as const;
 
-/** Order meals are eaten in, so a day never renders dinner before breakfast. */
+/**
+ * Fallback order for meals with no time on them, so a day never renders dinner
+ * before breakfast. Snacks sort last because without a clock there is nothing
+ * to say where in the day one belongs.
+ */
 const MEAL_ORDER: Record<MealPlanItem['mealType'], number> = {
   breakfast: 0,
   lunch: 1,
   dinner: 2,
   snack: 3,
 };
+
+/**
+ * Orders a day the way it will actually be lived.
+ *
+ * The clock wins wherever both meals carry one: a mid-morning snack belongs
+ * between breakfast and lunch, and sorting by sitting alone would file it after
+ * dinner. The sitting order is the fallback for plans generated before meals
+ * were timed, which keeps those readable rather than arbitrary.
+ *
+ * "HH:MM" is fixed-width and zero-padded, so comparing the strings *is*
+ * comparing the times — no parsing, and no zone to get wrong.
+ */
+function byTimeOfDay(a: MealPlanItem, b: MealPlanItem): number {
+  const left = a.scheduledTime.trim();
+  const right = b.scheduledTime.trim();
+
+  if (left && right && left !== right) {
+    return left < right ? -1 : 1;
+  }
+  return MEAL_ORDER[a.mealType] - MEAL_ORDER[b.mealType];
+}
 
 const round1 = (value: string | number): number => Math.round(Number(value) * 10) / 10;
 
@@ -106,8 +179,8 @@ function groupByDay(weekStartDate: string, items: readonly MealPlanItem[]): Meal
     const dayOfWeek = index + 1;
     const meals = items
       .filter((item) => item.dayOfWeek === dayOfWeek)
-      .sort((a, b) => MEAL_ORDER[a.mealType] - MEAL_ORDER[b.mealType])
-      .map(toItemView);
+      .sort(byTimeOfDay)
+      .map(toMealItemView);
 
     return {
       dayOfWeek,
@@ -119,15 +192,27 @@ function groupByDay(weekStartDate: string, items: readonly MealPlanItem[]): Meal
   });
 }
 
-function toItemView(item: MealPlanItem): MealPlanItemView {
+export function toMealItemView(item: MealPlanItem): MealPlanItemView {
   return {
     id: item.id,
+    dayOfWeek: item.dayOfWeek,
     mealType: item.mealType,
+    // Absent and empty are the same thing to a reader, and collapsing them here
+    // leaves the client one case to render rather than two.
+    scheduledTime: item.scheduledTime.trim() || null,
     name: item.name,
     kcal: Math.round(Number(item.calories)),
     protein: round1(item.proteinG),
     carbs: round1(item.carbsG),
     fat: round1(item.fatG),
+    fiber: round1(item.fiberG),
+    nutritionSource: item.nutritionSource,
+    facts: item.nutritionFacts ?? null,
+    reasoning: item.reasoning,
+    imageUrl: item.imageUrl,
+    // A source without a name is not attribution, so the whole block is dropped
+    // rather than rendered as a link to nobody.
+    source: item.sourceName ? { name: item.sourceName, url: item.sourceUrl } : null,
   };
 }
 
@@ -138,8 +223,9 @@ function sumDay(meals: readonly MealPlanItemView[]): MealPlanDayTotals {
       protein: acc.protein + meal.protein,
       carbs: acc.carbs + meal.carbs,
       fat: acc.fat + meal.fat,
+      fiber: acc.fiber + meal.fiber,
     }),
-    { kcal: 0, protein: 0, carbs: 0, fat: 0 },
+    { kcal: 0, protein: 0, carbs: 0, fat: 0, fiber: 0 },
   );
 
   return {
@@ -147,5 +233,6 @@ function sumDay(meals: readonly MealPlanItemView[]): MealPlanDayTotals {
     protein: Math.round(totals.protein),
     carbs: Math.round(totals.carbs),
     fat: Math.round(totals.fat),
+    fiber: Math.round(totals.fiber),
   };
 }

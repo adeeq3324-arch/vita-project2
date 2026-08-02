@@ -28,14 +28,19 @@ import {
   type GeneratedSupplementItem,
 } from './supplement-plan.schema';
 import {
+  toSupplementItemView,
   toSupplementPlanStatusView,
   toSupplementPlanView,
+  type SupplementItemView,
   type SupplementPlanStatusView,
   type SupplementPlanView,
 } from './supplement-plan.view';
 
-/** A regimen is a short list; it needs far less room than a week of meals. */
-const SUPPLEMENT_MAX_TOKENS = 3072;
+/**
+ * A regimen is a short list; it needs far less room than a week of meals, but
+ * each item now carries a facts panel, its benefits and its cautions.
+ */
+const SUPPLEMENT_MAX_TOKENS = 5120;
 
 /**
  * How recently a user must have used the app to be swept into the monthly
@@ -106,6 +111,29 @@ export class SupplementPlansService {
   /** The full plan by id. Items are empty until generation completes. */
   async getById(userId: string, planId: string): Promise<SupplementPlanView> {
     return this.withItems(await this.findOwned(userId, planId));
+  }
+
+  /** One supplement from a plan, for the detail screen and deep links into it. */
+  async getItem(
+    userId: string,
+    planId: string,
+    itemId: string,
+  ): Promise<SupplementItemView> {
+    await this.findOwned(userId, planId);
+
+    // Scoped to the plan the caller was just proven to own, so an item id from
+    // someone else's regimen simply does not match.
+    const item = await this.db.query.supplementPlanItems.findFirst({
+      where: and(
+        eq(supplementPlanItems.id, itemId),
+        eq(supplementPlanItems.supplementPlanId, planId),
+      ),
+    });
+
+    if (!item) {
+      throw new NotFoundException('Supplement not found.');
+    }
+    return toSupplementItemView(item);
   }
 
   /**
@@ -311,9 +339,19 @@ export class SupplementPlansService {
     return items.map((item) => ({
       supplementPlanId,
       supplementName: item.supplementName.trim(),
+      tier: item.tier,
+      category: item.category.trim(),
+      headline: item.headline.trim(),
       bestTime: item.bestTime,
-      guidance: withDisclaimer(item.guidance),
+      servingSize: item.servingSize.trim(),
+      ingredients: item.ingredients.map((entry) => ({
+        name: entry.name.trim(),
+        amount: entry.amount.trim(),
+      })),
       purpose: item.purpose.trim(),
+      recommendation: withDisclaimer(item.recommendation),
+      benefits: item.benefits.map((benefit) => benefit.trim()),
+      safety: item.safety.map((caution) => caution.trim()),
     }));
   }
 }

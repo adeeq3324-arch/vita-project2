@@ -24,6 +24,7 @@ import { AiModule } from './ai/ai.module';
 import { AiContextModule } from './ai-context/ai-context.module';
 import { AiJobsModule } from './ai-jobs/ai-jobs.module';
 import { StorageModule } from './storage/storage.module';
+import { SpoonacularModule } from './spoonacular/spoonacular.module';
 import { MealPlansModule } from './meal-plans/meal-plans.module';
 import { SupplementPlansModule } from './supplement-plans/supplement-plans.module';
 import { CoachModule } from './coach/coach.module';
@@ -99,6 +100,7 @@ import { ObservabilityModule } from './common/observability/observability.module
     AiJobsModule,
     AiContextModule,
     StorageModule,
+    SpoonacularModule,
     MealPlansModule,
     SupplementPlansModule,
     CoachModule,

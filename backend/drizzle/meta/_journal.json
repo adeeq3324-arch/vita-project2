@@ -71,6 +71,55 @@
       "when": 1785254400000,
       "tag": "0009_rls_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1785564883068,
+      "tag": "0010_planning_detail",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1785640163880,
+      "tag": "0011_drop_supplement_duration",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1785643101307,
+      "tag": "0012_supplement_ingredients",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1785643143527,
+      "tag": "0013_drop_supplement_guidance",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1785654248115,
+      "tag": "0014_meal_recipes",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1785654289973,
+      "tag": "0015_enable_rls_meal_recipes",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1785913200000,
+      "tag": "0016_meal_timing_and_sourcing",
+      "breakpoints": true
     }
   ]
 }

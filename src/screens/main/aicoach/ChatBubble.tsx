@@ -4,13 +4,36 @@ import { colors, radius, spacing, typography } from '@/theme';
 
 export type ChatRole = 'ai' | 'user';
 
+/**
+ * Emphasis the coach occasionally writes despite being told not to.
+ *
+ * The prompt asks for plain text, because this bubble is a `Text` and markdown
+ * has no meaning inside one. A model still reaches for `**bold**` now and then,
+ * and asterisks printed literally look like a bug — so the few that get through
+ * are rendered rather than shown. Split on the delimiter and every other piece
+ * is the emphasised one.
+ */
+const EMPHASIS = /\*\*/;
+
 /** A single chat bubble: AI on the left (light), user on the right (violet). */
 export function ChatBubble({ role, text }: { role: ChatRole; text: string }) {
   const isUser = role === 'user';
+  const parts = text.split(EMPHASIS);
+
   return (
     <View style={[styles.row, isUser ? styles.rowUser : styles.rowAi]}>
       <View style={[styles.bubble, isUser ? styles.user : styles.ai]}>
-        <Text style={[styles.text, isUser ? styles.userText : styles.aiText]}>{text}</Text>
+        <Text style={[styles.text, isUser ? styles.userText : styles.aiText]}>
+          {parts.map((part, index) =>
+            index % 2 === 1 ? (
+              <Text key={index} style={styles.strong}>
+                {part}
+              </Text>
+            ) : (
+              part
+            ),
+          )}
+        </Text>
       </View>
     </View>
   );
@@ -62,6 +85,13 @@ const styles = StyleSheet.create({
   text: {
     ...typography.body,
     lineHeight: 21,
+    // The coach answers in the user's own language, so a bubble may hold Arabic
+    // or another right-to-left script inside a left-to-right interface. `auto`
+    // lets each message take its direction from its own text.
+    writingDirection: 'auto',
+  },
+  strong: {
+    ...typography.bodyStrong,
   },
   aiText: {
     color: colors.text.primary,

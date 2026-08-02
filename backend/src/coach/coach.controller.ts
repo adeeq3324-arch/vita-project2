@@ -7,11 +7,15 @@ import {
   Post,
   Req,
   Res,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import type { Request, Response } from 'express';
 import type { AuthenticatedUser } from '../auth/auth.types';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AiRateLimit } from '../common/throttler/throttle.decorators';
+import { MAX_AUDIO_BYTES, VoiceRecordingPipe } from './coach-audio.validation';
 import { CoachService } from './coach.service';
 import {
   listPersonalities,
@@ -31,6 +35,15 @@ import { SendMessageDto } from './dto/send-message.dto';
  * and is ignored by every SSE client.
  */
 const HEARTBEAT_MS = 15_000;
+
+/**
+ * Multer configuration for voice messages.
+ *
+ * Memory storage: the recording is base64-encoded into one model request and
+ * discarded, so it never needs a path on disk — and never writing it down is
+ * also the simplest guarantee that nothing a user said is left on the server.
+ */
+const VOICE_UPLOAD_OPTIONS = { limits: { fileSize: MAX_AUDIO_BYTES, files: 1 } };
 
 /**
  * The AI health coach, mounted at `/api/v1/coach`. Every route is protected by
@@ -70,6 +83,24 @@ export class CoachController {
     @Param('id', ParseUUIDPipe) id: string,
   ): Promise<CoachMessageView[]> {
     return this.coach.listMessages(user.id, id);
+  }
+
+  /**
+   * Transcribes a spoken question, as `multipart/form-data` with one `audio`
+   * part.
+   *
+   * Returns the words and stops there. Sending is a separate call the user makes
+   * after reading what was heard — see {@link CoachService.transcribe} for why
+   * the two are not one round trip.
+   */
+  @Post('voice')
+  @AiRateLimit(60)
+  @UseInterceptors(FileInterceptor('audio', VOICE_UPLOAD_OPTIONS))
+  async transcribe(
+    @CurrentUser() user: AuthenticatedUser,
+    @UploadedFile(VoiceRecordingPipe) audio: Express.Multer.File,
+  ): Promise<{ text: string }> {
+    return { text: await this.coach.transcribe(user.id, audio) };
   }
 
   /**

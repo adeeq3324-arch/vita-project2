@@ -5,12 +5,21 @@ import { DonutChart } from '@/components/charts/DonutChart';
 import { Card } from '@/components/ui/Card';
 import { colors, layout, radius, spacing, typography } from '@/theme';
 
-import { chartData, macros, type ProgressPeriod } from './progressData';
+import type { MacroLegend, ProgressCharts } from '@/services/progress/progressService';
+import { metricName } from '@/utils/icons';
 
 /** Nutrition Progress: average-calorie bars and the macro-distribution donut. */
-export function NutritionProgressCard({ period }: { period: ProgressPeriod }) {
-  const calories = chartData[period].calories;
-  const totalGrams = macros.reduce((sum, m) => sum + m.grams, 0);
+export function NutritionProgressCard({
+  calories,
+  macros,
+}: {
+  calories: ProgressCharts['calories'];
+  macros: MacroLegend[];
+}) {
+  const totalGrams = macros.reduce((sum, macro) => sum + macro.grams, 0);
+  const segments = macros
+    .filter((macro) => macro.grams > 0)
+    .map((macro) => ({ value: macro.grams, color: colors.metric[metricName(macro.metric)] }));
 
   return (
     <Card>
@@ -32,15 +41,20 @@ export function NutritionProgressCard({ period }: { period: ProgressPeriod }) {
       <Text style={styles.subTitle}>Macros Distribution</Text>
       <View style={styles.macrosRow}>
         <DonutChart
-          segments={macros.map((m) => ({ value: m.grams, color: m.color }))}
+          segments={segments}
           size={116}
-          centerLabel={`${totalGrams}g`}
+          centerLabel={`${Math.round(totalGrams)}g`}
           centerSub="total"
         />
         <View style={styles.legend}>
           {macros.map((macro) => (
             <View key={macro.key} style={styles.legendRow}>
-              <View style={[styles.dot, { backgroundColor: macro.color }]} />
+              <View
+                style={[
+                  styles.dot,
+                  { backgroundColor: colors.metric[metricName(macro.metric)] },
+                ]}
+              />
               <Text style={styles.legendLabel}>{macro.label}</Text>
               <Text style={styles.legendValue}>
                 {macro.grams}g <Text style={styles.legendPercent}>({macro.percent}%)</Text>

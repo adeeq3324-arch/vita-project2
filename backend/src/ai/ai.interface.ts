@@ -19,6 +19,20 @@ export interface AiMessage {
   content: string;
 }
 
+/**
+ * A recording handed to the model as bytes rather than a URL.
+ *
+ * Spoken input never reaches object storage: a voice message is transcribed and
+ * discarded within the request that carried it, so there is nothing to sign a
+ * URL for and nothing left behind to leak.
+ */
+export interface InlineAudio {
+  /** MIME type, e.g. `audio/m4a`. */
+  mediaType: string;
+  /** Raw bytes, base64-encoded. */
+  base64: string;
+}
+
 /** Per-call tuning. Every field is a hint — implementations clamp to their own limits. */
 export interface AiRequestOptions {
   /** Steers behaviour for the whole call. Prepended ahead of any other input. */
@@ -85,6 +99,16 @@ export abstract class AiService {
 
   /** Interprets an image at `imageUrl` under the direction of `prompt`. */
   abstract analyzeImage(imageUrl: string, prompt: string, opts?: AiRequestOptions): Promise<string>;
+
+  /**
+   * Verbatim text of a recording, in whatever language was spoken.
+   *
+   * Not every request format carries audio; implementations that cannot must
+   * throw {@link AiGenerationError} rather than return an empty string, so a
+   * misconfigured environment fails loudly instead of silently dropping what
+   * the user said.
+   */
+  abstract transcribeAudio(audio: InlineAudio, opts?: AiRequestOptions): Promise<string>;
 
   /**
    * A multi-turn exchange, yielded incrementally as the response is produced so

@@ -39,6 +39,20 @@ const palette = {
   amber500: '#F59E0B',
   amber100: '#FEF3C7',
 
+  /**
+   * Planning design tokens. The plan screens are colour-coded by domain rather
+   * than by the app's violet: a warm amber for food, a cool blue for
+   * supplements. Kept as their own stops because they are specified values from
+   * the planning design, not tints of the accents above.
+   */
+  plannerAmber: '#DC8E47',
+  plannerAmberDark: '#B8712F',
+  plannerAmberSurface: '#FBF0E5',
+  plannerBlue: '#3AC9FA',
+  plannerBlueDark: '#1AA7DA',
+  plannerBlueSurface: '#E6F7FE',
+  plannerInk: '#1A0D0A',
+
   white: '#FFFFFF',
   gray50: '#F9FAFB',
   gray100: '#F3F4F6',
@@ -154,6 +168,25 @@ export const colors = {
     pink: palette.pink100,
     red: palette.red100,
     neutral: palette.gray100,
+  },
+
+  /**
+   * The Planning surface's own accents.
+   *
+   * Meal planning is warm and supplement planning is cool, and the split is
+   * doing real work: the two plans have near-identical layouts, and the colour
+   * is what tells a user at a glance which one they are looking at. `ink` is the
+   * near-black the planning design sets its headings in — deeper and warmer than
+   * the app's neutral gray, so plan headings read as their own surface.
+   */
+  plan: {
+    meal: palette.plannerAmber,
+    mealDark: palette.plannerAmberDark,
+    mealSurface: palette.plannerAmberSurface,
+    supplement: palette.plannerBlue,
+    supplementDark: palette.plannerBlueDark,
+    supplementSurface: palette.plannerBlueSurface,
+    ink: palette.plannerInk,
   },
 
   /** Scrim behind modals and the FAB action menu. */

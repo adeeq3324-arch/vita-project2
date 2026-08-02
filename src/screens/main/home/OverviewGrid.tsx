@@ -4,19 +4,20 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { colors, radius, spacing, typography } from '@/theme';
 
-import { dailyMetricsFor, type Metric } from './homeData';
+import type { HomeMetric } from '@/services/home/homeService';
+import { materialIcon, metricName } from '@/utils/icons';
+
+import { metricTarget, metricValue } from './homeFormat';
 
 /**
  * Daily Health Overview: a three-column grid of metric tiles (calories,
  * protein, carbs, fat, water, steps), each with a mini progress bar. Reflects
  * the day selected in the week strip.
  */
-export function OverviewGrid({ date }: { date: Date }) {
-  const dailyMetrics = dailyMetricsFor(date);
-
+export function OverviewGrid({ metrics }: { metrics: HomeMetric[] }) {
   return (
     <View style={styles.grid}>
-      {dailyMetrics.map((metric) => (
+      {metrics.map((metric) => (
         <View key={metric.key} style={styles.cell}>
           <MetricTile metric={metric} />
         </View>
@@ -25,25 +26,26 @@ export function OverviewGrid({ date }: { date: Date }) {
   );
 }
 
-function MetricTile({ metric }: { metric: Metric }) {
-  const color = colors.metric[metric.metric];
-  const surface = colors.metricSurface[metric.metric];
+function MetricTile({ metric }: { metric: HomeMetric }) {
+  const key = metricName(metric.metric);
+  const color = colors.metric[key];
+  const surface = colors.metricSurface[key];
 
   return (
     <Card padding="sm" style={styles.tile}>
       <View style={styles.tileHeader}>
         <View style={[styles.icon, { backgroundColor: surface }]}>
-          <MaterialCommunityIcons name={metric.icon} size={15} color={color} />
+          <MaterialCommunityIcons name={materialIcon(metric.icon)} size={15} color={color} />
         </View>
         <Text style={styles.label} numberOfLines={1}>
           {metric.label}
         </Text>
       </View>
       <Text style={styles.value} numberOfLines={1}>
-        {metric.value}
+        {metricValue(metric)}
       </Text>
       <Text style={styles.target} numberOfLines={1}>
-        {metric.target}
+        {metricTarget(metric)}
       </Text>
       <View style={styles.track}>
         <View

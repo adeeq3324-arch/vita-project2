@@ -39,6 +39,17 @@ export const CacheTtl = {
   progressSnapshots: 10 * 60,
   /** Achievement standing is re-evaluated behind this, from the same aggregates. */
   achievements: 5 * 60,
+  /**
+   * A dish matched against the food knowledge base.
+   *
+   * Long-lived, and the most valuable entry in this table: the upstream quota is
+   * metered daily, and generated plans name the same few hundred ordinary dishes
+   * over and over across every user. One cached "grilled chicken salad" serves
+   * every plan that suggests one for a week.
+   */
+  dishMatch: 7 * 24 * 60 * 60,
+  /** A published method, which does not change once written. */
+  sourcedRecipe: 30 * 24 * 60 * 60,
 } as const;
 
 /** Short, collision-resistant digest of a composite cache input. */
@@ -97,4 +108,18 @@ export const CacheKeys = {
 
   /** A user's evaluated achievement standing. */
   achievements: (userId: string): string => `${ROOT}:analytics:${userId}:achievements`,
+
+  /**
+   * A dish looked up in the food knowledge base, keyed by the name that was
+   * searched for.
+   *
+   * Shared across every user by design — "porridge with berries" resolves to the
+   * same photograph and the same measured macros whoever was planned it — which
+   * is what turns a per-user cost into a per-dish one.
+   */
+  dishMatch: (dishName: string): string =>
+    `${ROOT}:spoonacular:dish:${digest(dishName.trim().toLowerCase())}`,
+
+  /** A published method, keyed by the source's own recipe id. */
+  sourcedRecipe: (recipeId: number): string => `${ROOT}:spoonacular:recipe:${recipeId}`,
 } as const;

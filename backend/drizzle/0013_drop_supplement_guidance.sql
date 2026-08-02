@@ -1,0 +1,14 @@
+-- Drop the "How to take it" text.
+--
+-- `guidance` held a paragraph of dosing instruction — how much, when, what to
+-- take it with. However carefully it was hedged, a specific amount presented to
+-- a specific person reads as a prescription, and it is not one: nothing in the
+-- app knows what else they take, what their bloods say, or what their doctor
+-- would advise. 0012 replaced it with the two things that are honestly ours to
+-- state — what is in the product (`serving_size`, `ingredients`) and the
+-- direction to agree an amount with a healthcare provider (`recommendation`).
+--
+-- Separate from 0012 on purpose: the replacement columns land and are populated
+-- first, so no deploy order exists in which the screen has lost the old text
+-- before it has the new.
+ALTER TABLE "supplement_plan_items" DROP COLUMN "guidance";

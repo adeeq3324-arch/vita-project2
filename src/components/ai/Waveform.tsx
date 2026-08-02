@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { Animated, Platform, StyleSheet, View } from 'react-native';
 
 import { colors, radius } from '@/theme';
@@ -12,8 +12,12 @@ const BAR_COUNT = 28;
  * low and still.
  */
 export function Waveform({ active, color = colors.primary }: { active: boolean; color?: string }) {
-  // One animated value per bar, created once.
-  const bars = useRef(Array.from({ length: BAR_COUNT }, () => new Animated.Value(0.2))).current;
+  // One animated value per bar, created once. Lazy `useState` rather than a ref:
+  // these values are read while rendering (the bars bind to them), which is
+  // exactly what a ref is not for.
+  const [bars] = useState(() =>
+    Array.from({ length: BAR_COUNT }, () => new Animated.Value(0.2)),
+  );
 
   useEffect(() => {
     if (!active) {

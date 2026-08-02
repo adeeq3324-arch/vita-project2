@@ -1,42 +1,95 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 
 import { DonutChart } from '@/components/charts/DonutChart';
 import { DetailHeader } from '@/components/layout/DetailHeader';
 import { Screen } from '@/components/layout/Screen';
 import { Card } from '@/components/ui/Card';
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui/StateView';
+import { useFoodDiary } from '@/context/FoodDiaryContext';
+import { useFocusRefresh, useResource } from '@/hooks';
 import { AddCustomMealModal } from '@/screens/main/foodtracking/AddCustomMealModal';
-import { useFoodDiary, type MealDraft } from '@/context/FoodDiaryContext';
-import { useOnboarding } from '@/context/OnboardingContext';
-import { calorieTarget } from '@/services/ai/profile';
+import {
+  getTargets,
+  searchFoods,
+  type Food,
+  type MealDraft,
+} from '@/services/nutrition/nutritionService';
 import { colors, radius, spacing, typography } from '@/theme';
-import type { AIIcon } from '@/services/ai/types';
+import { accentName, materialIcon } from '@/utils/icons';
 
-/** Quick-add suggestions surfaced under "Recent Meals". */
-const suggestions: (MealDraft & { subtitle: string })[] = [
-  { name: 'Grilled Chicken Salad', kcal: 520, protein: 42, carbs: 30, fat: 24, icon: 'bowl-mix', accent: 'green', subtitle: 'Today · 12:30 PM' },
-  { name: 'Oatmeal with Berries', kcal: 340, protein: 12, carbs: 54, fat: 6, icon: 'coffee', accent: 'orange', subtitle: 'Today · 8:30 AM' },
-  { name: 'Protein Smoothie', kcal: 320, protein: 28, carbs: 40, fat: 7, icon: 'cup', accent: 'violet', subtitle: 'Yesterday · 6:00 PM' },
-];
+/** Debounce for the search box, so a typed word is one request, not five. */
+const SEARCH_DEBOUNCE_MS = 300;
 
 export function FoodTrackingScreen() {
-  const { data } = useOnboarding();
-  const { meals, totals, addMeal } = useFoodDiary();
+  const diary = useFoodDiary();
   const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
   const [modalOpen, setModalOpen] = useState(false);
+  const [addingId, setAddingId] = useState<string | null>(null);
 
-  const target = calorieTarget(data);
-  const filtered = useMemo(
-    () => suggestions.filter((s) => s.name.toLowerCase().includes(query.trim().toLowerCase())),
-    [query],
-  );
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(query), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [query]);
+
+  const results = useResource(() => searchFoods(debouncedQuery), [debouncedQuery]);
+  const targets = useResource(() => getTargets(), []);
+
+  const refreshDiary = useCallback(() => diary.refresh(), [diary]);
+  useFocusRefresh(refreshDiary);
+
+  const { totals } = diary;
+  const calorieTarget = targets.data?.calories ?? null;
+
+  const log = async (draft: MealDraft, key: string) => {
+    setAddingId(key);
+    try {
+      await diary.addMeal(draft);
+    } catch (error) {
+      Alert.alert(
+        'Could not log that meal',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setAddingId(null);
+    }
+  };
+
+  const remove = (id: string, name: string) => {
+    Alert.alert('Remove entry', `Remove “${name}” from today’s diary?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Remove',
+        style: 'destructive',
+        onPress: () => {
+          void diary.removeMeal(id).catch((error: unknown) =>
+            Alert.alert(
+              'Could not remove that entry',
+              error instanceof Error ? error.message : 'Please try again.',
+            ),
+          );
+        },
+      },
+    ]);
+  };
 
   const macroSegments = [
-    { value: Math.max(totals.protein, 0.1), color: colors.metric.protein },
-    { value: Math.max(totals.carbs, 0.1), color: colors.metric.carbs },
-    { value: Math.max(totals.fat, 0.1), color: colors.metric.fat },
-  ];
+    { value: totals.protein, color: colors.metric.protein },
+    { value: totals.carbs, color: colors.metric.carbs },
+    { value: totals.fat, color: colors.metric.fat },
+  ].filter((segment) => segment.value > 0);
+
   const macroLegend = [
     { label: 'Protein', value: `${totals.protein}g`, color: colors.metric.protein },
     { label: 'Carbs', value: `${totals.carbs}g`, color: colors.metric.carbs },
@@ -55,40 +108,46 @@ export function FoodTrackingScreen() {
             onChangeText={setQuery}
             placeholder="Search food"
             placeholderTextColor={colors.text.disabled}
+            autoCorrect={false}
             style={styles.searchInput}
           />
+          {query.length > 0 ? (
+            <Pressable onPress={() => setQuery('')} accessibilityLabel="Clear search" hitSlop={8}>
+              <Feather name="x" size={18} color={colors.text.disabled} />
+            </Pressable>
+          ) : null}
         </View>
 
-        <Text style={styles.sectionTitle}>Recent Meals</Text>
+        <Text style={styles.sectionTitle}>{debouncedQuery ? 'Results' : 'Food Catalogue'}</Text>
         <Card padding="none" style={styles.list}>
-          {filtered.length === 0 ? (
-            <Text style={styles.empty}>No matches for “{query}”.</Text>
-          ) : (
-            filtered.map((meal, index) => (
-              <View key={meal.name}>
-                {index > 0 ? <View style={styles.divider} /> : null}
-                <View style={styles.mealRow}>
-                  <View style={[styles.thumb, { backgroundColor: colors.accentSurface[meal.accent] }]}>
-                    <MaterialCommunityIcons name={meal.icon as AIIcon} size={20} color={colors.accent[meal.accent]} />
-                  </View>
-                  <View style={styles.mealCopy}>
-                    <Text style={styles.mealName}>{meal.name}</Text>
-                    <Text style={styles.mealMeta}>
-                      {meal.kcal} kcal · {meal.subtitle}
-                    </Text>
-                  </View>
-                  <Pressable
-                    onPress={() => addMeal(meal)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Add ${meal.name}`}
-                    style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
-                  >
-                    <Feather name="plus" size={18} color={colors.white} />
-                  </Pressable>
-                </View>
-              </View>
-            ))
-          )}
+          {results.loading ? <LoadingState label="Searching…" /> : null}
+
+          {results.error && !results.data ? (
+            <ErrorState message={results.error.message} onRetry={results.refresh} />
+          ) : null}
+
+          {results.data?.items.length === 0 ? (
+            <EmptyState
+              icon="search"
+              title="No matches"
+              message={
+                debouncedQuery
+                  ? `Nothing in the catalogue matches “${debouncedQuery}”. Add it as a custom meal instead.`
+                  : 'The food catalogue is empty.'
+              }
+            />
+          ) : null}
+
+          {results.data?.items.map((food, index) => (
+            <View key={food.id}>
+              {index > 0 ? <View style={styles.divider} /> : null}
+              <FoodRow
+                food={food}
+                busy={addingId === food.id}
+                onAdd={() => log({ foodId: food.id, servings: 1 }, food.id)}
+              />
+            </View>
+          ))}
         </Card>
 
         <Pressable
@@ -100,7 +159,7 @@ export function FoodTrackingScreen() {
           <Text style={styles.customBtnText}>Add Custom Meal</Text>
         </Pressable>
 
-        <Text style={styles.sectionTitle}>Meal History</Text>
+        <Text style={styles.sectionTitle}>Today</Text>
         <Card>
           <View style={styles.historyRow}>
             <DonutChart
@@ -111,10 +170,12 @@ export function FoodTrackingScreen() {
               centerSub="kcal"
             />
             <View style={styles.historySide}>
-              <Text style={styles.historyTitle}>Today</Text>
+              <Text style={styles.historyTitle}>{diary.mealCount === 1 ? '1 meal' : `${diary.mealCount} meals`}</Text>
               <Text style={styles.historyTotal}>
                 {totals.kcal.toLocaleString()}
-                <Text style={styles.historyTarget}> / {target.toLocaleString()} kcal</Text>
+                <Text style={styles.historyTarget}>
+                  {calorieTarget ? ` / ${calorieTarget.toLocaleString()} kcal` : ' kcal'}
+                </Text>
               </Text>
               <View style={styles.legend}>
                 {macroLegend.map((macro) => (
@@ -127,8 +188,55 @@ export function FoodTrackingScreen() {
               </View>
             </View>
           </View>
+
           <View style={styles.divider} />
-          <Text style={styles.loggedTitle}>{meals.length} meals logged today</Text>
+
+          {diary.loading && diary.mealCount === 0 ? (
+            <LoadingState label="Loading your diary…" />
+          ) : diary.error && diary.mealCount === 0 ? (
+            <ErrorState message={diary.error.message} onRetry={refreshDiary} />
+          ) : diary.meals.length === 0 ? (
+            <EmptyState
+              icon="coffee"
+              title="Nothing logged today"
+              message="Add a meal from the catalogue above and your totals update straight away."
+            />
+          ) : (
+            diary.meals.map((meal, index) => (
+              <View key={meal.id}>
+                {index > 0 ? <View style={styles.divider} /> : null}
+                <View style={styles.mealRow}>
+                  <View
+                    style={[
+                      styles.thumb,
+                      { backgroundColor: colors.accentSurface[accentName(meal.accent)] },
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={materialIcon(meal.icon)}
+                      size={20}
+                      color={colors.accent[accentName(meal.accent)]}
+                    />
+                  </View>
+                  <View style={styles.mealCopy}>
+                    <Text style={styles.mealName}>{meal.name}</Text>
+                    <Text style={styles.mealMeta}>
+                      {meal.kcal} kcal · {meal.time}
+                    </Text>
+                  </View>
+                  <Pressable
+                    onPress={() => remove(meal.id, meal.name)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${meal.name}`}
+                    hitSlop={8}
+                    style={({ pressed }) => [styles.removeBtn, pressed && styles.removeBtnPressed]}
+                  >
+                    <Feather name="trash-2" size={16} color={colors.text.tertiary} />
+                  </Pressable>
+                </View>
+              </View>
+            ))
+          )}
         </Card>
       </ScrollView>
 
@@ -136,11 +244,49 @@ export function FoodTrackingScreen() {
         visible={modalOpen}
         onClose={() => setModalOpen(false)}
         onSave={(draft) => {
-          addMeal(draft);
           setModalOpen(false);
+          void log(draft, 'custom');
         }}
       />
     </Screen>
+  );
+}
+
+function FoodRow({ food, busy, onAdd }: { food: Food; busy: boolean; onAdd: () => void }) {
+  const accent = accentName(food.accent);
+
+  return (
+    <View style={styles.mealRow}>
+      <View style={[styles.thumb, { backgroundColor: colors.accentSurface[accent] }]}>
+        <MaterialCommunityIcons
+          name={materialIcon(food.icon)}
+          size={20}
+          color={colors.accent[accent]}
+        />
+      </View>
+      <View style={styles.mealCopy}>
+        <Text style={styles.mealName} numberOfLines={1}>
+          {food.name}
+        </Text>
+        <Text style={styles.mealMeta} numberOfLines={1}>
+          {food.kcal} kcal · {food.serving.label}
+          {food.brand ? ` · ${food.brand}` : ''}
+        </Text>
+      </View>
+      <Pressable
+        onPress={onAdd}
+        disabled={busy}
+        accessibilityRole="button"
+        accessibilityLabel={`Add ${food.name}`}
+        style={({ pressed }) => [styles.addBtn, pressed && styles.addBtnPressed]}
+      >
+        {busy ? (
+          <ActivityIndicator size="small" color={colors.white} />
+        ) : (
+          <Feather name="plus" size={18} color={colors.white} />
+        )}
+      </Pressable>
+    </View>
   );
 }
 
@@ -169,12 +315,6 @@ const styles = StyleSheet.create({
   },
   list: {
     paddingHorizontal: spacing.base,
-  },
-  empty: {
-    ...typography.body,
-    color: colors.text.tertiary,
-    paddingVertical: spacing.lg,
-    textAlign: 'center',
   },
   divider: {
     height: 1,
@@ -213,6 +353,17 @@ const styles = StyleSheet.create({
   },
   addBtnPressed: {
     backgroundColor: colors.primaryDark,
+  },
+  removeBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceSunken,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  removeBtnPressed: {
+    backgroundColor: colors.divider,
   },
   customBtn: {
     flexDirection: 'row',
@@ -272,10 +423,5 @@ const styles = StyleSheet.create({
   legendValue: {
     ...typography.label,
     color: colors.text.primary,
-  },
-  loggedTitle: {
-    ...typography.caption,
-    color: colors.text.tertiary,
-    marginTop: spacing.md,
   },
 });

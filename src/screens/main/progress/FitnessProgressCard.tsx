@@ -1,31 +1,60 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { BarChart } from '@/components/charts/BarChart';
 import { Card } from '@/components/ui/Card';
 import { colors, layout, spacing, typography } from '@/theme';
 
+import type { FitnessStats, ProgressCharts } from '@/services/progress/progressService';
+
 import { StatRow } from './StatRow';
-import { chartData, fitnessStats, type ProgressPeriod } from './progressData';
 
 /** Fitness Progress: workout-frequency bars with session, streak and duration totals. */
-export function FitnessProgressCard({ period }: { period: ProgressPeriod }) {
-  const workout = chartData[period].workout;
+export function FitnessProgressCard({
+  workout,
+  fitnessStats,
+  onLogWorkout,
+}: {
+  workout: ProgressCharts['workout'];
+  fitnessStats: FitnessStats;
+  onLogWorkout: () => void;
+}) {
+  const noSessions = workout.data.every((value) => value === 0);
 
   return (
     <Card>
       <View style={styles.header}>
         <Text style={styles.title}>Fitness</Text>
-        <Text style={styles.headerMeta}>Workout frequency</Text>
+        <Pressable
+          onPress={onLogWorkout}
+          accessibilityRole="button"
+          accessibilityLabel="Log a workout"
+          hitSlop={8}
+          style={({ pressed }) => [styles.logBtn, pressed && styles.logBtnPressed]}
+        >
+          <Feather name="plus" size={13} color={colors.primary} />
+          <Text style={styles.logBtnText}>Log workout</Text>
+        </Pressable>
       </View>
 
-      <BarChart data={workout.data} color={colors.metric.workout} height={88} />
-      <View style={styles.labels}>
-        {workout.labels.map((label) => (
-          <Text key={label} style={styles.label}>
-            {label}
+      {noSessions ? (
+        <Pressable onPress={onLogWorkout} accessibilityRole="button">
+          <Text style={styles.empty}>
+            No sessions in this period.{'\n'}Log one and the bars start filling.
           </Text>
-        ))}
-      </View>
+        </Pressable>
+      ) : (
+        <BarChart data={workout.data} color={colors.metric.workout} height={88} />
+      )}
+      {noSessions ? null : (
+        <View style={styles.labels}>
+          {workout.labels.map((label) => (
+            <Text key={label} style={styles.label}>
+              {label}
+            </Text>
+          ))}
+        </View>
+      )}
 
       <View style={styles.divider} />
       <StatRow
@@ -50,9 +79,27 @@ const styles = StyleSheet.create({
     ...typography.h4,
     color: colors.text.primary,
   },
-  headerMeta: {
+  logBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 3,
+    borderRadius: 999,
+    backgroundColor: colors.primarySurface,
+  },
+  logBtnPressed: {
+    opacity: 0.7,
+  },
+  logBtnText: {
     ...typography.micro,
+    color: colors.primary,
+  },
+  empty: {
+    ...typography.caption,
     color: colors.text.tertiary,
+    textAlign: 'center',
+    paddingVertical: spacing.lg,
   },
   labels: {
     flexDirection: 'row',

@@ -3,23 +3,20 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { colors, radius, spacing, typography } from '@/theme';
 
-import { aiInsightFor } from './homeData';
-
 /**
- * AI Health Insight: a soft violet panel with a robot mark and a personalised
- * recommendation (mock copy for now). Reflects the day selected in the week strip.
+ * Health Insight: a soft violet panel with a robot mark and a recommendation
+ * derived from the day's own figures. Reflects the day selected in the week
+ * strip.
  */
-export function AIInsightCard({ date }: { date: Date }) {
-  const aiInsight = aiInsightFor(date);
-
+export function AIInsightCard({ insight }: { insight: { title: string; message: string } }) {
   return (
     <View style={styles.card}>
       <View style={styles.robot}>
         <MaterialCommunityIcons name="robot-happy" size={22} color={colors.white} />
       </View>
       <View style={styles.copy}>
-        <Text style={styles.title}>{aiInsight.title}</Text>
-        <Text style={styles.message}>{aiInsight.message}</Text>
+        <Text style={styles.title}>{insight.title}</Text>
+        <Text style={styles.message}>{insight.message}</Text>
       </View>
     </View>
   );

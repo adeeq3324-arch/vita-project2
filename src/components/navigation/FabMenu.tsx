@@ -1,5 +1,5 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Animated,
   Modal,
@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Circle, Line } from 'react-native-svg';
 
 import { colors, radius, shadows, typography } from '@/theme';
-import { quickActions, type QuickActionRoute } from '@/screens/main/quickActions';
+import { quickActions, type QuickAction } from '@/screens/main/quickActions';
 
 /** Native transform driver isn't supported on web; fall back to the JS driver. */
 const USE_NATIVE = Platform.OS !== 'web';
@@ -40,7 +40,7 @@ const offsets = [
 type FabMenuProps = {
   visible: boolean;
   onClose: () => void;
-  onSelect: (route: QuickActionRoute) => void;
+  onSelect: (action: QuickAction) => void;
 };
 
 /**
@@ -50,28 +50,47 @@ type FabMenuProps = {
 export function FabMenu({ visible, onClose, onSelect }: FabMenuProps) {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const [mounted, setMounted] = useState(visible);
-  const anim = useRef(new Animated.Value(0)).current;
+  // Read during render (every bubble binds to it), so it is state, not a ref.
+  const [anim] = useState(() => new Animated.Value(0));
+  // The menu outlives `visible` by one animation: it stays mounted while the
+  // bubbles collapse back into the FAB. `exiting` is that tail and nothing more
+  // — being *open* is already fully described by `visible`.
+  //
+  // The tail has to begin in the same commit that `visible` goes false, or the
+  // menu unmounts before it can animate away. React's tool for that is
+  // adjusting state during render: it re-renders immediately, without painting
+  // the intermediate result. An effect cannot do this — it runs after paint, so
+  // the menu would blink out first and only then start collapsing.
+  const [exiting, setExiting] = useState(false);
+  const [wasVisible, setWasVisible] = useState(visible);
+  if (wasVisible !== visible) {
+    setWasVisible(visible);
+    setExiting(!visible);
+  }
+
+  const mounted = visible || exiting;
 
   useEffect(() => {
     if (visible) {
-      setMounted(true);
       Animated.spring(anim, {
         toValue: 1,
         useNativeDriver: USE_NATIVE,
         friction: 7,
         tension: 80,
       }).start();
-    } else if (mounted) {
-      Animated.timing(anim, {
-        toValue: 0,
-        duration: 160,
-        useNativeDriver: USE_NATIVE,
-      }).start(({ finished }) => finished && setMounted(false));
+      return;
     }
-    // `mounted` intentionally excluded: it's a target of this effect, not a trigger.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible]);
+
+    // Nothing on screen to animate away: either the first render, or the
+    // collapse already finished.
+    if (!exiting) return;
+
+    Animated.timing(anim, {
+      toValue: 0,
+      duration: 160,
+      useNativeDriver: USE_NATIVE,
+    }).start(({ finished }) => finished && setExiting(false));
+  }, [anim, exiting, visible]);
 
   if (!mounted) return null;
 
@@ -107,7 +126,7 @@ export function FabMenu({ visible, onClose, onSelect }: FabMenuProps) {
 
           return (
             <Animated.View
-              key={action.route}
+              key={action.key}
               style={[
                 styles.item,
                 {
@@ -119,7 +138,7 @@ export function FabMenu({ visible, onClose, onSelect }: FabMenuProps) {
               ]}
             >
               <Pressable
-                onPress={() => onSelect(action.route)}
+                onPress={() => onSelect(action)}
                 accessibilityRole="button"
                 accessibilityLabel={action.label}
                 style={({ pressed }) => [

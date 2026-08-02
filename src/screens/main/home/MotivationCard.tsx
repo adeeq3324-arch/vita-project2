@@ -4,15 +4,15 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { colors, gradients, radius, shadows, spacing, typography } from '@/theme';
 
-import { motivationFor } from './homeData';
-
 /**
  * Daily Motivation: a brand-gradient card closing the Home feed with a quote.
  * Reflects the day selected in the week strip.
  */
-export function MotivationCard({ date }: { date: Date }) {
-  const motivation = motivationFor(date);
-
+export function MotivationCard({
+  motivation,
+}: {
+  motivation: { quote: string; author: string };
+}) {
   return (
     <LinearGradient
       colors={gradients.brand}

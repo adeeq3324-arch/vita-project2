@@ -1,179 +1,251 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useMemo, useState } from 'react';
+import { RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { DetailHeader } from '@/components/layout/DetailHeader';
 import { Screen } from '@/components/layout/Screen';
 import { Card } from '@/components/ui/Card';
-import { useOnboarding } from '@/context/OnboardingContext';
+import { EmptyState, LoadingState } from '@/components/ui/StateView';
 import { usePlan } from '@/context/PlanContext';
-import { dailyTotals, mealPlan } from '@/services/ai';
-import { colors, radius, spacing, typography } from '@/theme';
+import { colors, spacing, typography } from '@/theme';
 import type { MainStackParamList } from '@/navigation/types';
+import type { MealPlanDay } from '@/services/planning/planningService';
 
 import { GenerateGate } from './planning/GenerateGate';
-import { MealCard } from './planning/MealCard';
+import { formatGrams, PlannedMealCard } from './planning/PlannedMealCard';
+import { PlanBanner } from './planning/PlanBanner';
+import { PlanHeader } from './planning/PlanHeader';
+import { WeekStrip } from './planning/WeekStrip';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'MealPlan'>;
 
-export function MealPlanScreen({ navigation }: Props) {
-  const { data } = useOnboarding();
-  const { status, generate } = usePlan();
-  const [dayIndex, setDayIndex] = useState(0);
+const MEAL_TINT = {
+  color: colors.plan.meal,
+  surface: colors.plan.mealSurface,
+  dark: colors.plan.mealDark,
+};
 
-  if (status.meal !== 'ready') {
+export function MealPlanScreen({ navigation }: Props) {
+  const { meal, hydrating, generate, refresh } = usePlan();
+  const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const today = useMemo(() => localToday(), []);
+  const plan = meal.data;
+
+  // The plan opens on today when it covers today, and on its first day
+  // otherwise. Held as null until the user picks, so a plan that arrives after
+  // the screen mounts still lands on the right day rather than on day one.
+  const days = plan?.days ?? [];
+  const dayOfWeek = selectedDay ?? defaultDay(days, today);
+  const day = days.find((entry) => entry.dayOfWeek === dayOfWeek) ?? days[0];
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refresh('meal');
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  if (hydrating) {
     return (
       <Screen edges={{ top: true, bottom: false }}>
-        <DetailHeader title="Meal Plan" />
+        <PlanHeader title="Meals Plan" subtitle="This week" />
+        <LoadingState label="Loading your plan…" />
+      </Screen>
+    );
+  }
+
+  if (!plan) {
+    return (
+      <Screen edges={{ top: true, bottom: false }}>
+        <PlanHeader title="Meals Plan" subtitle="This week" />
         <GenerateGate
           icon="silverware-fork-knife"
-          accent="green"
+          tint={MEAL_TINT}
           title="Your AI Meal Plan"
-          description="Generate a 7-day meal plan built around your goal, calorie target and food preferences."
-          points={['7 days of meals', 'Calories & macros balanced', 'Full recipe for every meal']}
-          loading={status.meal === 'generating'}
-          onGenerate={() => generate('meal')}
+          description="A seven-day plan built around your calorie target, your macro split and the conditions on your health profile."
+          points={[
+            'Seven days, every meal',
+            'Calories, protein, carbs, fat and fibre',
+            'A reason behind every dish',
+          ]}
+          loading={meal.status === 'generating'}
+          error={meal.error}
+          onGenerate={() => void generate('meal')}
         />
       </Screen>
     );
   }
 
-  const plan = mealPlan(data);
-  const day = plan[dayIndex]!;
-  const totals = dailyTotals(day);
-
-  const macros = [
-    { label: 'Protein', value: `${totals.protein}g`, color: colors.metric.protein },
-    { label: 'Carbs', value: `${totals.carbs}g`, color: colors.metric.carbs },
-    { label: 'Fat', value: `${totals.fat}g`, color: colors.metric.fat },
-  ];
-
   return (
     <Screen edges={{ top: true, bottom: false }}>
-      <DetailHeader title="7-Day Meal Plan" />
+      <PlanHeader
+        title="Meals Plan"
+        subtitle="This week"
+        regenerating={meal.status === 'generating'}
+        onRegenerate={() => void generate('meal')}
+      />
+
+      <WeekStrip
+        days={plan.days}
+        selectedDayOfWeek={dayOfWeek}
+        onSelect={setSelectedDay}
+        today={today}
+      />
 
       <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.days}
-        style={styles.daysRow}
-      >
-        {plan.map((entry, index) => {
-          const selected = index === dayIndex;
-          return (
-            <Pressable
-              key={entry.day}
-              onPress={() => setDayIndex(index)}
-              accessibilityRole="tab"
-              accessibilityState={{ selected }}
-              style={[styles.dayPill, selected && styles.dayPillActive]}
-            >
-              <Text style={[styles.dayText, selected && styles.dayTextActive]}>Day {entry.day}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        {day.meals.map((meal) => (
-          <MealCard
-            key={meal.type}
-            meal={meal}
-            onPress={() => navigation.navigate('MealDetail', { day: day.day, type: meal.type })}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void onRefresh()}
+            tintColor={colors.plan.meal}
           />
-        ))}
+        }
+      >
+        <PlanBanner
+          title="Your AI meal plan is ready"
+          subtitle="Balanced meals tailored to your goals."
+          tint={colors.plan.meal}
+        />
 
-        <Card style={styles.totals}>
-          <View style={styles.totalMain}>
-            <Text style={styles.totalLabel}>Daily Total</Text>
-            <Text style={styles.totalKcal}>
-              {totals.kcal.toLocaleString()} <Text style={styles.totalKcalUnit}>kcal</Text>
-            </Text>
-          </View>
-          <View style={styles.macroRow}>
-            {macros.map((macro) => (
-              <View key={macro.label} style={styles.macro}>
-                <View style={[styles.macroDot, { backgroundColor: macro.color }]} />
-                <Text style={styles.macroValue}>{macro.value}</Text>
-                <Text style={styles.macroLabel}>{macro.label}</Text>
+        {day ? (
+          <>
+            <Text style={styles.dayHeading}>{dayHeading(day)}</Text>
+
+            {day.meals.length === 0 ? (
+              <EmptyState
+                icon="calendar"
+                title="No meals for this day"
+                message="The plan came back short for this day. Regenerating usually fixes it."
+                action="Regenerate"
+                onAction={() => void generate('meal')}
+              />
+            ) : (
+              day.meals.map((entry) => (
+                <PlannedMealCard
+                  key={entry.id}
+                  meal={entry}
+                  onPress={() =>
+                    navigation.navigate('MealDetail', {
+                      mealPlanId: plan.mealPlanId,
+                      mealId: entry.id,
+                    })
+                  }
+                />
+              ))
+            )}
+
+            <Card style={styles.totals}>
+              <View style={styles.totalsHeader}>
+                <Text style={styles.totalsLabel}>Daily Total</Text>
+                <Text style={styles.totalsKcal}>
+                  {day.totals.kcal.toLocaleString()}{' '}
+                  <Text style={styles.totalsUnit}>/ {plan.calorieTarget.toLocaleString()} kcal</Text>
+                </Text>
               </View>
-            ))}
-          </View>
-        </Card>
+              <View style={styles.totalsRow}>
+                <Total label="Protein" value={day.totals.protein} color={colors.metric.protein} />
+                <Total label="Carbs" value={day.totals.carbs} color={colors.metric.carbs} />
+                <Total label="Fat" value={day.totals.fat} color={colors.metric.fat} />
+                <Total label="Fiber" value={day.totals.fiber} color={colors.metric.fiber} />
+              </View>
+            </Card>
+          </>
+        ) : null}
       </ScrollView>
     </Screen>
   );
 }
 
+function Total({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <View style={styles.total}>
+      <View style={[styles.totalDot, { backgroundColor: color }]} />
+      <Text style={styles.totalValue}>{formatGrams(value)}</Text>
+      <Text style={styles.totalLabel}>{label}</Text>
+    </View>
+  );
+}
+
+/** Today's calendar date in the device's own zone, as `YYYY-MM-DD`. */
+function localToday(): string {
+  // `en-CA` is used because its short date format *is* ISO-8601, which keeps
+  // this comparable to the dates the API returns without any parsing.
+  return new Date().toLocaleDateString('en-CA');
+}
+
+/** The day a plan should open on: today when it covers today, else its first. */
+function defaultDay(days: readonly MealPlanDay[], today: string): number {
+  return days.find((day) => day.date === today)?.dayOfWeek ?? days[0]?.dayOfWeek ?? 1;
+}
+
+/** "Monday, 21 Jul" — the heading over a day's meals. */
+function dayHeading(day: MealPlanDay): string {
+  const date = new Date(`${day.date}T12:00:00Z`);
+  const formatted = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'UTC',
+    day: 'numeric',
+    month: 'short',
+  }).format(date);
+  return `${day.dayName}, ${formatted}`;
+}
+
 const styles = StyleSheet.create({
-  daysRow: {
-    flexGrow: 0,
-    marginBottom: spacing.sm,
-  },
-  days: {
-    gap: spacing.sm,
-    paddingVertical: spacing.xs,
-  },
-  dayPill: {
-    paddingHorizontal: spacing.base,
-    paddingVertical: spacing.sm,
-    borderRadius: radius.full,
-    backgroundColor: colors.surfaceSunken,
-  },
-  dayPillActive: {
-    backgroundColor: colors.primary,
-  },
-  dayText: {
-    ...typography.label,
-    color: colors.text.secondary,
-  },
-  dayTextActive: {
-    color: colors.white,
-  },
   content: {
     gap: spacing.md,
-    paddingBottom: spacing['3xl'],
+    paddingTop: spacing.md,
+    paddingBottom: spacing['4xl'],
+  },
+  dayHeading: {
+    ...typography.h4,
+    color: colors.plan.ink,
+    marginTop: spacing.xs,
   },
   totals: {
     marginTop: spacing.xs,
+    gap: spacing.md,
   },
-  totalMain: {
+  totalsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: spacing.md,
   },
-  totalLabel: {
+  totalsLabel: {
     ...typography.h4,
-    color: colors.text.primary,
+    color: colors.plan.ink,
   },
-  totalKcal: {
-    ...typography.h2,
-    color: colors.primary,
+  totalsKcal: {
+    ...typography.h4,
+    color: colors.plan.mealDark,
   },
-  totalKcalUnit: {
-    ...typography.label,
+  totalsUnit: {
+    ...typography.caption,
     color: colors.text.tertiary,
   },
-  macroRow: {
+  totalsRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
   },
-  macro: {
+  total: {
     flex: 1,
     alignItems: 'center',
+    gap: 2,
   },
-  macroDot: {
+  totalDot: {
     width: 8,
     height: 8,
-    borderRadius: radius.full,
-    marginBottom: spacing.xs,
+    borderRadius: 999,
+    marginBottom: 2,
   },
-  macroValue: {
+  totalValue: {
     ...typography.bodyStrong,
-    color: colors.text.primary,
+    color: colors.plan.ink,
   },
-  macroLabel: {
+  totalLabel: {
     ...typography.micro,
     color: colors.text.tertiary,
   },

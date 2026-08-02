@@ -1,6 +1,6 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { DetailHeader } from '@/components/layout/DetailHeader';
 import { Screen } from '@/components/layout/Screen';
@@ -22,17 +22,26 @@ export function FoodScanResultScreen({ navigation }: Props) {
 
   const getMacro = (label: string) => result.nutrients.find((n) => n.label === label)?.value ?? 0;
 
-  const addToDiary = () => {
-    addMeal({
-      name: result.name,
-      kcal: result.calories,
-      protein: getMacro('Protein'),
-      carbs: getMacro('Carbs'),
-      fat: getMacro('Fat'),
-      icon: result.icon,
-      accent: result.accent,
-    });
-    navigation.navigate('FoodTracking');
+  // The entry is persisted, so navigation waits for the write: sending the user
+  // to a diary that does not yet contain what they just added reads as a bug.
+  const addToDiary = async () => {
+    try {
+      await addMeal({
+        name: result.name,
+        kcal: result.calories,
+        protein: getMacro('Protein'),
+        carbs: getMacro('Carbs'),
+        fat: getMacro('Fat'),
+        icon: result.icon,
+        accent: result.accent,
+      });
+      navigation.navigate('FoodTracking');
+    } catch (error) {
+      Alert.alert(
+        'Could not log that meal',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    }
   };
 
   return (

@@ -4,12 +4,10 @@ import { BarChart } from '@/components/charts/BarChart';
 import { Card } from '@/components/ui/Card';
 import { colors, spacing, typography } from '@/theme';
 
-import { chartData, type ProgressPeriod } from './progressData';
+import type { ProgressCharts } from '@/services/progress/progressService';
 
 /** Water Intake: daily hydration bars against the target. */
-export function WaterIntakeCard({ period }: { period: ProgressPeriod }) {
-  const water = chartData[period].water;
-
+export function WaterIntakeCard({ water }: { water: ProgressCharts['water'] }) {
   return (
     <Card>
       <View style={styles.header}>

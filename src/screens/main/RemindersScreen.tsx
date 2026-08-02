@@ -1,33 +1,39 @@
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useMemo, useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from 'react-native';
+import { useCallback, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DetailHeader } from '@/components/layout/DetailHeader';
 import { Screen } from '@/components/layout/Screen';
 import { Card } from '@/components/ui/Card';
 import { Segmented } from '@/components/ui/Segmented';
+import { EmptyState, ErrorState, LoadingState } from '@/components/ui/StateView';
+import { useFocusRefresh, useResource } from '@/hooks';
+import {
+  CATEGORY_LABELS,
+  REMINDER_CATEGORIES,
+  create,
+  list,
+  parseTimeInput,
+  remove,
+  update,
+  type Reminder,
+  type ReminderCategory,
+  type ReminderFilter,
+} from '@/services/reminders/remindersService';
 import { colors, layout, radius, shadows, spacing, typography } from '@/theme';
-import type { AccentName } from '@/theme';
-import type { AIIcon } from '@/services/ai/types';
-
-type Reminder = {
-  id: string;
-  time: string;
-  name: string;
-  icon: AIIcon;
-  accent: AccentName;
-  on: boolean;
-  when: 'today' | 'upcoming';
-};
-
-const initial: Reminder[] = [
-  { id: 'r1', time: '8:00 AM', name: 'Take Vitamin D3', icon: 'weather-sunny', accent: 'orange', on: true, when: 'today' },
-  { id: 'r2', time: '12:00 PM', name: 'Lunch Reminder', icon: 'silverware-fork-knife', accent: 'red', on: true, when: 'today' },
-  { id: 'r3', time: '4:00 PM', name: 'Workout Time', icon: 'dumbbell', accent: 'green', on: true, when: 'today' },
-  { id: 'r4', time: '6:00 PM', name: 'Drink Water', icon: 'cup-water', accent: 'cyan', on: true, when: 'today' },
-  { id: 'r5', time: '9:00 PM', name: 'Magnesium', icon: 'moon-waning-crescent', accent: 'violet', on: false, when: 'upcoming' },
-];
+import { accentName, materialIcon } from '@/utils/icons';
 
 const filters = [
   { value: 'all', label: 'All' },
@@ -37,30 +43,62 @@ const filters = [
 
 export function RemindersScreen() {
   const insets = useSafeAreaInsets();
-  const [reminders, setReminders] = useState(initial);
-  const [filter, setFilter] = useState<'all' | 'today' | 'upcoming'>('all');
+  const [filter, setFilter] = useState<ReminderFilter>('all');
   const [modalOpen, setModalOpen] = useState(false);
-  const [name, setName] = useState('');
-  const [time, setTime] = useState('');
+  const [pendingId, setPendingId] = useState<string | null>(null);
 
-  const visible = useMemo(
-    () => (filter === 'all' ? reminders : reminders.filter((r) => r.when === filter)),
-    [reminders, filter],
-  );
+  const reminders = useResource(() => list(filter), [filter]);
+  useFocusRefresh(reminders.refresh);
 
-  const toggle = (id: string) =>
-    setReminders((prev) => prev.map((r) => (r.id === id ? { ...r, on: !r.on } : r)));
+  const items = reminders.data ?? [];
 
-  const addReminder = () => {
-    if (!name.trim() || !time.trim()) return;
-    setReminders((prev) => [
-      ...prev,
-      { id: `r-${Date.now()}`, time: time.trim(), name: name.trim(), icon: 'bell-ring', accent: 'violet', on: true, when: 'today' },
-    ]);
-    setName('');
-    setTime('');
-    setModalOpen(false);
+  /**
+   * The switch writes through to the server and re-reads. It deliberately does
+   * not update local state first: a reminder that looks on but is off on the
+   * server is the one failure mode this screen must never have.
+   */
+  const toggle = async (reminder: Reminder) => {
+    setPendingId(reminder.id);
+    try {
+      await update(reminder.id, { enabled: !reminder.enabled });
+      await reminders.refresh();
+    } catch (error) {
+      Alert.alert(
+        'Could not update that reminder',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setPendingId(null);
+    }
   };
+
+  const confirmDelete = (reminder: Reminder) => {
+    Alert.alert('Delete reminder', `Delete “${reminder.name}”?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: () => {
+          void (async () => {
+            try {
+              await remove(reminder.id);
+              await reminders.refresh();
+            } catch (error) {
+              Alert.alert(
+                'Could not delete that reminder',
+                error instanceof Error ? error.message : 'Please try again.',
+              );
+            }
+          })();
+        },
+      },
+    ]);
+  };
+
+  const onCreated = useCallback(() => {
+    setModalOpen(false);
+    void reminders.refresh();
+  }, [reminders]);
 
   return (
     <Screen edges={{ top: true, bottom: false }}>
@@ -70,28 +108,70 @@ export function RemindersScreen() {
       </View>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-        <Card padding="none" style={styles.listCard}>
-          {visible.map((reminder, index) => (
-            <View key={reminder.id}>
-              {index > 0 ? <View style={styles.divider} /> : null}
-              <View style={styles.row}>
-                <View style={[styles.icon, { backgroundColor: colors.accentSurface[reminder.accent] }]}>
-                  <MaterialCommunityIcons name={reminder.icon} size={18} color={colors.accent[reminder.accent]} />
-                </View>
-                <View style={styles.copy}>
-                  <Text style={styles.time}>{reminder.time}</Text>
-                  <Text style={styles.name}>{reminder.name}</Text>
-                </View>
-                <Switch
-                  value={reminder.on}
-                  onValueChange={() => toggle(reminder.id)}
-                  trackColor={{ true: colors.primary, false: colors.borderStrong }}
-                  thumbColor={colors.white}
-                />
+        {reminders.loading ? <LoadingState label="Loading reminders…" /> : null}
+
+        {reminders.error && !reminders.data ? (
+          <ErrorState message={reminders.error.message} onRetry={reminders.refresh} />
+        ) : null}
+
+        {reminders.data && items.length === 0 ? (
+          <EmptyState
+            icon="bell"
+            title={filter === 'all' ? 'No reminders yet' : 'Nothing in this view'}
+            message={
+              filter === 'all'
+                ? 'Add one and VITAL AI will nudge you at the right time — supplements, water, workouts.'
+                : 'Switch to All to see every reminder you have set.'
+            }
+            action={filter === 'all' ? 'Add reminder' : undefined}
+            onAction={filter === 'all' ? () => setModalOpen(true) : undefined}
+          />
+        ) : null}
+
+        {items.length > 0 ? (
+          <Card padding="none" style={styles.listCard}>
+            {items.map((reminder, index) => (
+              <View key={reminder.id}>
+                {index > 0 ? <View style={styles.divider} /> : null}
+                <Pressable
+                  onLongPress={() => confirmDelete(reminder)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${reminder.name} at ${reminder.timeLabel}. Long press to delete.`}
+                  style={styles.row}
+                >
+                  <View
+                    style={[
+                      styles.icon,
+                      { backgroundColor: colors.accentSurface[accentName(reminder.accent)] },
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name={materialIcon(reminder.icon, 'bell-ring')}
+                      size={18}
+                      color={colors.accent[accentName(reminder.accent)]}
+                    />
+                  </View>
+                  <View style={styles.copy}>
+                    <Text style={styles.time}>
+                      {reminder.timeLabel} · {reminder.repeat}
+                    </Text>
+                    <Text style={styles.name}>{reminder.name}</Text>
+                  </View>
+                  {pendingId === reminder.id ? (
+                    <ActivityIndicator color={colors.primary} />
+                  ) : (
+                    <Switch
+                      value={reminder.enabled}
+                      onValueChange={() => void toggle(reminder)}
+                      trackColor={{ true: colors.primary, false: colors.borderStrong }}
+                      thumbColor={colors.white}
+                    />
+                  )}
+                </Pressable>
               </View>
-            </View>
-          ))}
-        </Card>
+            ))}
+          </Card>
+        ) : null}
 
         <Pressable
           onPress={() => setModalOpen(true)}
@@ -103,41 +183,132 @@ export function RemindersScreen() {
         </Pressable>
       </ScrollView>
 
-      <Modal visible={modalOpen} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setModalOpen(false)}>
-        <Pressable style={styles.backdrop} onPress={() => setModalOpen(false)} accessibilityLabel="Close" />
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + spacing.base }]}>
-          <View style={styles.grabber} />
-          <Text style={styles.sheetTitle}>Add Reminder</Text>
-          <Text style={styles.fieldLabel}>Reminder name</Text>
-          <TextInput
-            value={name}
-            onChangeText={setName}
-            placeholder="e.g. Evening walk"
-            placeholderTextColor={colors.text.disabled}
-            style={styles.input}
-          />
-          <Text style={styles.fieldLabel}>Time</Text>
-          <TextInput
-            value={time}
-            onChangeText={setTime}
-            placeholder="e.g. 7:30 PM"
-            placeholderTextColor={colors.text.disabled}
-            style={styles.input}
-          />
-          <Pressable
-            onPress={addReminder}
-            disabled={!name.trim() || !time.trim()}
-            style={({ pressed }) => [
-              styles.saveBtn,
-              (!name.trim() || !time.trim()) && styles.saveDisabled,
-              pressed && styles.savePressed,
-            ]}
-          >
-            <Text style={styles.saveText}>Save Reminder</Text>
-          </Pressable>
-        </View>
-      </Modal>
+      <AddReminderSheet
+        visible={modalOpen}
+        bottomInset={insets.bottom}
+        onClose={() => setModalOpen(false)}
+        onCreated={onCreated}
+      />
     </Screen>
+  );
+}
+
+/** Bottom sheet for creating a reminder: name, time, and what kind it is. */
+function AddReminderSheet({
+  visible,
+  bottomInset,
+  onClose,
+  onCreated,
+}: {
+  visible: boolean;
+  bottomInset: number;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [time, setTime] = useState('');
+  const [category, setCategory] = useState<ReminderCategory>('custom');
+  const [saving, setSaving] = useState(false);
+
+  const parsedTime = parseTimeInput(time);
+  const timeInvalid = time.trim().length > 0 && parsedTime === null;
+  const valid = name.trim().length > 0 && parsedTime !== null;
+
+  const reset = () => {
+    setName('');
+    setTime('');
+    setCategory('custom');
+  };
+
+  const save = async () => {
+    if (!valid || parsedTime === null) return;
+    setSaving(true);
+    try {
+      await create({ name: name.trim(), time: parsedTime, category });
+      reset();
+      onCreated();
+    } catch (error) {
+      Alert.alert(
+        'Could not save that reminder',
+        error instanceof Error ? error.message : 'Please try again.',
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      statusBarTranslucent
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Close" />
+      <View style={[styles.sheet, { paddingBottom: bottomInset + spacing.base }]}>
+        <View style={styles.grabber} />
+        <Text style={styles.sheetTitle}>Add Reminder</Text>
+
+        <Text style={styles.fieldLabel}>Reminder name</Text>
+        <TextInput
+          value={name}
+          onChangeText={setName}
+          placeholder="e.g. Evening walk"
+          placeholderTextColor={colors.text.disabled}
+          style={styles.input}
+        />
+
+        <Text style={styles.fieldLabel}>Time</Text>
+        <TextInput
+          value={time}
+          onChangeText={setTime}
+          placeholder="e.g. 7:30 PM or 19:30"
+          placeholderTextColor={colors.text.disabled}
+          autoCapitalize="none"
+          style={[styles.input, timeInvalid && styles.inputInvalid]}
+        />
+        {timeInvalid ? (
+          <Text style={styles.inputError}>Enter a time like 7:30 PM or 19:30.</Text>
+        ) : null}
+
+        <Text style={styles.fieldLabel}>Kind</Text>
+        <View style={styles.chips}>
+          {REMINDER_CATEGORIES.map((value) => {
+            const selected = value === category;
+            return (
+              <Pressable
+                key={value}
+                onPress={() => setCategory(value)}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                style={[styles.chip, selected && styles.chipSelected]}
+              >
+                <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+                  {CATEGORY_LABELS[value]}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+
+        <Pressable
+          onPress={() => void save()}
+          disabled={!valid || saving}
+          style={({ pressed }) => [
+            styles.saveBtn,
+            (!valid || saving) && styles.saveDisabled,
+            pressed && styles.savePressed,
+          ]}
+        >
+          {saving ? (
+            <ActivityIndicator color={colors.white} />
+          ) : (
+            <Text style={styles.saveText}>Save Reminder</Text>
+          )}
+        </Pressable>
+      </View>
+    </Modal>
   );
 }
 
@@ -233,6 +404,37 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.text.primary,
     marginBottom: spacing.base,
+  },
+  inputInvalid: {
+    borderColor: colors.danger,
+    marginBottom: spacing.xs,
+  },
+  inputError: {
+    ...typography.micro,
+    color: colors.danger,
+    marginBottom: spacing.base,
+  },
+  chips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    marginBottom: spacing.base,
+  },
+  chip: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.full,
+    backgroundColor: colors.surfaceSunken,
+  },
+  chipSelected: {
+    backgroundColor: colors.primary,
+  },
+  chipText: {
+    ...typography.caption,
+    color: colors.text.secondary,
+  },
+  chipTextSelected: {
+    color: colors.white,
   },
   saveBtn: {
     height: layout.ctaHeight,

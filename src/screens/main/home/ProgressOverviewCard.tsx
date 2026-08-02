@@ -4,15 +4,20 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Card } from '@/components/ui/Card';
 import { colors, layout, radius, spacing, typography } from '@/theme';
 
-import { progressOverviewFor } from './homeData';
+import type { HomeProgress } from '@/services/home/homeService';
 
 /**
- * Progress Overview: current weight with its monthly delta, goal-progress
- * percentage with a bar, and the active day streak. Reflects the day selected
- * in the week strip.
+ * Progress Overview: current weight with its change since the start of the
+ * window, goal-progress percentage with a bar, and the active day streak.
+ *
+ * Every figure can legitimately be unknown — no weigh-in recorded, no target
+ * set — so each cell falls back to "—" rather than presenting a zero as a
+ * measurement.
  */
-export function ProgressOverviewCard({ date }: { date: Date }) {
-  const { weight, goal, streak } = progressOverviewFor(date);
+export function ProgressOverviewCard({ progress }: { progress: HomeProgress }) {
+  const { weight, goal, streak } = progress;
+  const percent = goal.percent ?? 0;
+  const delta = weight.delta;
 
   return (
     <Card>
@@ -20,28 +25,37 @@ export function ProgressOverviewCard({ date }: { date: Date }) {
         <View style={styles.cell}>
           <Text style={styles.cellLabel}>Weight</Text>
           <Text style={styles.cellValue}>
-            {weight.value}
-            <Text style={styles.cellUnit}> {weight.unit}</Text>
+            {weight.current ?? '—'}
+            {weight.current !== null ? <Text style={styles.cellUnit}> {weight.unit}</Text> : null}
           </Text>
-          <View style={styles.deltaRow}>
-            <Feather
-              name="trending-down"
-              size={13}
-              color={weight.positive ? colors.success : colors.danger}
-            />
-            <Text style={[styles.delta, { color: weight.positive ? colors.success : colors.danger }]}>
-              {weight.delta}
+          {delta !== null && delta !== 0 ? (
+            <View style={styles.deltaRow}>
+              <Feather
+                name={delta < 0 ? 'trending-down' : 'trending-up'}
+                size={13}
+                color={weight.positive ? colors.success : colors.danger}
+              />
+              <Text
+                style={[styles.delta, { color: weight.positive ? colors.success : colors.danger }]}
+              >
+                {delta > 0 ? '+' : ''}
+                {delta} {weight.unit}
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.cellHint}>
+              {weight.current === null ? 'No weigh-in yet' : 'No change yet'}
             </Text>
-          </View>
+          )}
         </View>
 
         <View style={styles.separator} />
 
         <View style={styles.cell}>
           <Text style={styles.cellLabel}>{goal.label}</Text>
-          <Text style={styles.cellValue}>{goal.percent}%</Text>
+          <Text style={styles.cellValue}>{goal.percent === null ? '—' : `${percent}%`}</Text>
           <View style={styles.track}>
-            <View style={[styles.fill, { width: `${goal.percent}%` }]} />
+            <View style={[styles.fill, { width: `${percent}%` }]} />
           </View>
         </View>
 

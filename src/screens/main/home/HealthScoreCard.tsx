@@ -5,43 +5,58 @@ import { CircularGauge } from '@/components/charts/CircularGauge';
 import { Card } from '@/components/ui/Card';
 import { colors, fontWeight, radius, spacing, typography } from '@/theme';
 
+import type { HomeHealthScore } from '@/services/home/homeService';
+
 import { HealthTrendChart } from './HealthTrendChart';
-import { healthScoreFor } from './homeData';
 
 /**
- * Hero card: the Health Score gauge on the left (score, /max, and 7-day
- * change), an "Excellent" badge top-right, and a weekly trend chart on the
+ * Hero card: the Health Score gauge on the left (score, /max, and the change
+ * over the trend window), a caption badge top-right, and the trend chart on the
  * right. Reflects the day selected in the week strip.
+ *
+ * The score is null until a day has enough logged to be scored, so a brand-new
+ * account sees an explicit "—" rather than a zero it would read as a verdict.
  */
-export function HealthScoreCard({ date }: { date: Date }) {
-  const healthScore = healthScoreFor(date);
-  const positive = healthScore.delta >= 0;
+export function HealthScoreCard({ score }: { score: HomeHealthScore }) {
+  const scored = score.value !== null;
+  const positive = (score.delta ?? 0) >= 0;
 
   return (
     <Card>
       <View style={styles.header}>
         <Text style={styles.title}>Health Score</Text>
-        <View style={styles.badge}>
-          <MaterialCommunityIcons name="star-four-points" size={13} color={colors.primary} />
-          <Text style={styles.badgeText}>{healthScore.caption}</Text>
-        </View>
+        {score.caption ? (
+          <View style={styles.badge}>
+            <MaterialCommunityIcons name="star-four-points" size={13} color={colors.primary} />
+            <Text style={styles.badgeText}>{score.caption}</Text>
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.body}>
-        <CircularGauge value={healthScore.value} max={healthScore.max} size={116}>
+        <CircularGauge value={score.value ?? 0} max={score.max} size={116}>
           <View style={styles.gaugeCenter}>
-            <Text style={styles.score}>{healthScore.value}</Text>
-            <Text style={styles.scoreMax}>/ {healthScore.max}</Text>
-            <Text style={[styles.delta, positive ? styles.deltaUp : styles.deltaDown]}>
-              {positive ? '▲' : '▼'} {positive ? '+' : ''}
-              {healthScore.delta}
-            </Text>
-            <Text style={styles.deltaLabel}>{healthScore.deltaLabel}</Text>
+            <Text style={styles.score}>{scored ? score.value : '—'}</Text>
+            <Text style={styles.scoreMax}>/ {score.max}</Text>
+            {score.delta !== null ? (
+              <>
+                <Text style={[styles.delta, positive ? styles.deltaUp : styles.deltaDown]}>
+                  {positive ? '▲' : '▼'} {positive ? '+' : ''}
+                  {score.delta}
+                </Text>
+                <Text style={styles.deltaLabel}>{score.deltaLabel}</Text>
+              </>
+            ) : (
+              <Text style={styles.deltaLabel}>Not scored yet</Text>
+            )}
           </View>
         </CircularGauge>
 
         <View style={styles.chart}>
-          <HealthTrendChart data={healthScore.trend} labels={healthScore.trendLabels} />
+          <HealthTrendChart
+            data={score.trend.map((point) => point ?? 0)}
+            labels={score.trendLabels}
+          />
         </View>
       </View>
     </Card>

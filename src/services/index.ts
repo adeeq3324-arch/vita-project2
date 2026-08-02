@@ -1,7 +1,12 @@
+import { setAuthTokenProvider } from './api/client';
+import { getAccessToken } from './auth/session';
+
 export { api, ApiError, setAuthTokenProvider } from './api/client';
 
 export * as authService from './auth/authService';
+export * as coachService from './coach/coachService';
 export * as onboardingService from './onboarding/onboardingService';
+export * as planningService from './planning/planningService';
 export * as profileService from './profile/profileService';
 export {
   loadSession,
@@ -11,9 +16,6 @@ export {
   clearSession,
   type Session,
 } from './auth/session';
-
-import { setAuthTokenProvider } from './api/client';
-import { getAccessToken } from './auth/session';
 
 /**
  * Wires the API client to the session store so every request carries a fresh

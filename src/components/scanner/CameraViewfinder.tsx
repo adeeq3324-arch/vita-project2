@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { Animated, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -27,7 +27,8 @@ type CameraViewfinderProps = {
 export function CameraViewfinder({ hint, variant = 'frame', onCapture }: CameraViewfinderProps) {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const scan = useRef(new Animated.Value(0)).current;
+  // Read during render (the scan line binds to it), so it is state, not a ref.
+  const [scan] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     if (variant !== 'barcode') return;

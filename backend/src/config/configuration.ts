@@ -49,6 +49,23 @@ export interface AppConfiguration {
     maxRetries: number;
   };
   /**
+   * Spoonacular — the food knowledge base behind a generated plan.
+   *
+   * The model names dishes and times them; this is where the photograph, the
+   * measured macro composition and the published method come from. Optional by
+   * construction: with no key the enrichment step is skipped and a plan falls
+   * back to the model's own estimates, so no environment is *required* to hold a
+   * food-data subscription in order to generate a plan.
+   */
+  spoonacular: {
+    apiKey?: string;
+    baseUrl: string;
+    /** Per-request ceiling, milliseconds. */
+    timeoutMs: number;
+    /** Lookups one plan generation may spend, since the quota is metered daily. */
+    maxLookupsPerPlan: number;
+  };
+  /**
    * Request rate limiting.
    *
    * Three independent budgets, each tunable without a deploy because the right
@@ -179,6 +196,15 @@ export default (): AppConfiguration => ({
     apiKey: process.env.AI_API_KEY || undefined,
     timeoutMs: toInt(process.env.AI_TIMEOUT_MS, 60_000),
     maxRetries: toInt(process.env.AI_MAX_RETRIES, 2),
+  },
+  spoonacular: {
+    apiKey: process.env.SPOONACULAR_API_KEY || undefined,
+    baseUrl: (process.env.SPOONACULAR_BASE_URL || 'https://api.spoonacular.com').replace(
+      /\/+$/,
+      '',
+    ),
+    timeoutMs: toInt(process.env.SPOONACULAR_TIMEOUT_MS, 10_000),
+    maxLookupsPerPlan: toInt(process.env.SPOONACULAR_MAX_LOOKUPS_PER_PLAN, 56),
   },
   rateLimit: {
     // On unless explicitly disabled: a limiter that defaults to off is one that

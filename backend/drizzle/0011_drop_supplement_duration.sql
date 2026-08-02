@@ -1,0 +1,16 @@
+-- Drop the supplement duration.
+--
+-- `duration_days` was added in 0010 to carry "run this for 60 days, then review".
+-- In practice it said nothing the guidance did not already say better: a course
+-- length only means something alongside the reason for it, and every item worth
+-- reviewing already explains when and why inside `guidance`. Shown alone in the
+-- card footer and the detail strip it read as a rule to obey rather than advice
+-- to weigh, and it took half the width of the one instruction that does have to
+-- be followed daily — the timing.
+--
+-- Nothing reads the column: the generator no longer produces it, the view no
+-- longer returns it, and both surfaces that rendered it now give their full
+-- width to `best_time`. Dropping it is destructive and deliberate — what it held
+-- was model-generated advice being withdrawn, not a record of anything the user
+-- did, so there is nothing worth migrating out first.
+ALTER TABLE "supplement_plan_items" DROP COLUMN "duration_days";

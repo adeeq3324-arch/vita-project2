@@ -2,7 +2,12 @@ import { StyleSheet, Text, View } from 'react-native';
 
 import { Card } from '@/components/ui/Card';
 import { colors, layout, spacing, typography } from '@/theme';
-import type { WeekSummary } from '@/services/ai';
+
+export type WeekSummary = {
+  /** Meals across the whole generated week, not per day. */
+  mealsPlanned: number;
+  supplements: number;
+};
 
 /** "This Week Summary": planned meals and supplements at a glance. */
 export function WeekSummaryCard({ summary }: { summary: WeekSummary }) {
